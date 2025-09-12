@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CampusMart - Student Marketplace Platform
 
 🎓 A modern, OLX-style marketplace platform designed specifically for students to buy and sell items within their campus community.
@@ -213,3 +214,7 @@ This project is open source and available under the [MIT License](LICENSE).
 **Built with ❤️ for the student community**
 
 Enjoy trading with your fellow students! 🎉
+=======
+# CampusMart
+BEE project
+>>>>>>> e98225b5fc7e9c9d6967d9832b82f7ab7763eadd
