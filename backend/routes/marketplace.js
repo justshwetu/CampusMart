@@ -82,7 +82,7 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Get marketplace items error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -95,7 +95,7 @@ router.get('/categories', async (req, res) => {
     res.json({ categories });
   } catch (error) {
     console.error('Get marketplace categories error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -112,7 +112,7 @@ router.get('/recent', async (req, res) => {
     res.json({ items: recentItems });
   } catch (error) {
     console.error('Get recent items error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 

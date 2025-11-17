@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -24,7 +25,8 @@ import {
   Tab,
   Badge,
   Avatar,
-  Divider
+  Divider,
+  Snackbar
 } from '@mui/material';
 import {
   Add,
@@ -38,16 +40,39 @@ import {
   Category,
   Person,
   Phone,
-  Email
+  Email,
+  Payment
 } from '@mui/icons-material';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 import axios from 'axios';
+
+// Helper function to construct image URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=200&fit=crop&crop=center';
+  
+  // If it's already a full URL (like Unsplash), return as is
+  if (imagePath.startsWith('http')) {
+    return imagePath;
+  }
+  
+  // If it's a relative path, prepend the backend URL
+  return `http://localhost:3001/${imagePath}`;
+};
 
 const StudentMarketplace = () => {
   const { isDarkMode } = useTheme();
   const { user } = useAuth();
+  const { addToCart, getCartItemsCount } = useCart();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
   const [items, setItems] = useState([]);
   const [myItems, setMyItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -84,24 +109,63 @@ const StudentMarketplace = () => {
   ];
 
   useEffect(() => {
-    fetchMarketplaceItems();
+    // Get search parameter from URL
+    const urlParams = new URLSearchParams(location.search);
+    const searchParam = urlParams.get('search');
+    if (searchParam) {
+      setSearchTerm(searchParam);
+      fetchMarketplaceItems(1, false, searchParam);
+    } else {
+      fetchMarketplaceItems();
+    }
     if (user) {
       fetchMyItems();
     }
-  }, [user]);
+  }, [user, location.search]);
 
-  const fetchMarketplaceItems = async (pageNum = 1, append = false) => {
+  // Generate search suggestions when no results found
+  const generateSearchSuggestions = (searchQuery) => {
+    const suggestions = [
+      'iPhone', 'Samsung', 'laptop', 'books', 'table', 'chair',
+      'headphones', 'electronics', 'furniture', 'textbooks',
+      'gaming', 'study materials', 'phone', 'computer'
+    ];
+    
+    // Filter suggestions based on search query
+    const filtered = suggestions.filter(suggestion => 
+      suggestion.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      searchQuery.toLowerCase().includes(suggestion.toLowerCase())
+    );
+    
+    return filtered.length > 0 ? filtered.slice(0, 5) : suggestions.slice(0, 5);
+  };
+
+  const fetchMarketplaceItems = async (pageNum = 1, append = false, searchQuery = '') => {
     try {
       if (!append) setLoading(true);
       else setLoadingMore(true);
       
-      const response = await axios.get(`/marketplace?page=${pageNum}&limit=10`);
+      let url = `/marketplace?page=${pageNum}&limit=10`;
+      if (searchQuery) {
+        url += `&search=${encodeURIComponent(searchQuery)}`;
+      }
+      
+      const response = await axios.get(url);
       const newItems = response.data.items || [];
       
       if (append) {
         setItems(prev => [...prev, ...newItems]);
       } else {
         setItems(newItems);
+        
+        // Show suggestions if no results found for search
+        if (searchQuery && newItems.length === 0) {
+          const suggestions = generateSearchSuggestions(searchQuery);
+          setSearchSuggestions(suggestions);
+          setShowSuggestions(true);
+        } else {
+          setShowSuggestions(false);
+        }
       }
       
       setHasMore(newItems.length === 10);
@@ -117,8 +181,42 @@ const StudentMarketplace = () => {
 
   const loadMoreItems = () => {
     if (!loadingMore && hasMore) {
-      fetchMarketplaceItems(page + 1, true);
+      fetchMarketplaceItems(page + 1, true, searchTerm);
     }
+  };
+
+  // Handle suggestion click
+  const handleSuggestionClick = (suggestion) => {
+    setSearchTerm(suggestion);
+    setShowSuggestions(false);
+    navigate(`/marketplace?search=${encodeURIComponent(suggestion)}`);
+  };
+
+  // Handle direct item click
+  const handleItemClick = (item) => {
+    // Navigate to item detail or show item details
+    navigate(`/marketplace/item/${item._id}`);
+  };
+
+  // Handle search input change
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    if (value.trim()) {
+      // Debounce search
+      setTimeout(() => {
+        navigate(`/marketplace?search=${encodeURIComponent(value.trim())}`);
+      }, 500);
+    } else {
+      navigate('/marketplace');
+    }
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchTerm('');
+    setShowSuggestions(false);
+    navigate('/marketplace');
   };
 
   const fetchMyItems = async () => {
@@ -237,18 +335,22 @@ const StudentMarketplace = () => {
     setEditingItem(null);
   };
 
-  const handleInterest = async (itemId) => {
+  const handleAddToCart = (item) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`/marketplace/${itemId}/interest`, {
-        message: 'I am interested in this item'
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setSuccess('Interest shown! Seller will be notified.');
+      addToCart(item);
+      setSnackbarMessage(`${item.title} added to cart!`);
+      setSnackbarOpen(true);
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to show interest');
+      setError('Failed to add item to cart');
     }
+  };
+
+  const handleCheckout = () => {
+    if (getCartItemsCount() === 0) {
+      setError('Your cart is empty');
+      return;
+    }
+    navigate('/cart');
   };
 
   const handleEditItem = (item) => {
@@ -396,20 +498,83 @@ const StudentMarketplace = () => {
             Buy and sell second-hand items with fellow students
           </Typography>
           
-          {/* Add Item Button */}
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => setOpenDialog(true)}
-            sx={{
-              background: 'linear-gradient(135deg, #9B1313, #38000A)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #38000A, #9B1313)'
-              }
-            }}
-          >
-            Sell an Item
-          </Button>
+          {/* Search Bar */}
+           <Box sx={{ mb: 3, maxWidth: 600, mx: 'auto' }}>
+             <TextField
+               fullWidth
+               placeholder="Search for items (e.g., iPhone 12, laptop, books)..."
+               value={searchTerm}
+               onChange={handleSearchChange}
+               sx={{
+                 '& .MuiOutlinedInput-root': {
+                   backgroundColor: isDarkMode 
+                     ? 'rgba(255, 255, 255, 0.15)' 
+                     : 'rgba(255, 255, 255, 0.9)',
+                   borderRadius: 2,
+                   color: isDarkMode ? '#ffffff' : '#333333',
+                   '& fieldset': { border: 'none' },
+                   '& input::placeholder': {
+                     color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
+                     opacity: 1
+                   },
+                   '&:hover': {
+                     backgroundColor: isDarkMode 
+                       ? 'rgba(255, 255, 255, 0.2)' 
+                       : 'rgba(255, 255, 255, 0.95)'
+                   }
+                 }
+               }}
+               InputProps={{
+                 endAdornment: searchTerm && (
+                   <IconButton 
+                     onClick={clearSearch} 
+                     size="small"
+                     sx={{
+                       color: isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)',
+                       '&:hover': {
+                         backgroundColor: isDarkMode 
+                           ? 'rgba(255, 255, 255, 0.1)' 
+                           : 'rgba(0, 0, 0, 0.04)',
+                         color: isDarkMode ? '#ffffff' : '#333333'
+                       }
+                     }}
+                   >
+                     <Delete />
+                   </IconButton>
+                 )
+               }}
+             />
+           </Box>
+
+          {/* Action Buttons */}
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => setOpenDialog(true)}
+              sx={{
+                background: 'linear-gradient(135deg, #9B1313, #38000A)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #38000A, #9B1313)'
+                }
+              }}
+            >
+              Sell an Item
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<Badge badgeContent={getCartItemsCount()} color="error"><ShoppingCart /></Badge>}
+              onClick={handleCheckout}
+              sx={{
+                background: 'linear-gradient(135deg, #FF9800, #FFB74D)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #F57C00, #FF9800)'
+                }
+              }}
+            >
+              Checkout ({getCartItemsCount()})
+            </Button>
+          </Box>
         </Box>
 
         {/* Alerts */}
@@ -443,6 +608,47 @@ const StudentMarketplace = () => {
         {/* Tab Content */}
         {activeTab === 0 && (
           <Box sx={{ maxWidth: '800px', margin: '0 auto' }}>
+            {/* Search Results Info */}
+            {searchTerm && (
+              <Box sx={{ mb: 3, textAlign: 'center' }}>
+                <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
+                  {items.length > 0 
+                    ? `Found ${items.length} result${items.length !== 1 ? 's' : ''} for "${searchTerm}"`
+                    : `No results found for "${searchTerm}"`
+                  }
+                </Typography>
+              </Box>
+            )}
+
+            {/* No Results - Show Suggestions */}
+            {showSuggestions && searchTerm && items.length === 0 && (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+                  Item "${searchTerm}" is currently unavailable
+                </Typography>
+                <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.8)', mb: 3 }}>
+                  Try searching for these popular items instead:
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
+                  {searchSuggestions.map((suggestion, index) => (
+                    <Chip
+                      key={index}
+                      label={suggestion}
+                      onClick={() => handleSuggestionClick(suggestion)}
+                      sx={{
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255,255,255,0.3)'
+                        }
+                      }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
             {items.map((item) => (
               <Box key={item._id} sx={{ mb: 3 }}>
                 <Card 
@@ -453,6 +659,7 @@ const StudentMarketplace = () => {
                     backdropFilter: 'blur(10px)',
                     border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : 'none',
                     transition: 'all 0.3s ease',
+                    cursor: 'pointer',
                     '&:hover': {
                       transform: 'translateY(-2px)',
                       boxShadow: isDarkMode 
@@ -460,6 +667,7 @@ const StudentMarketplace = () => {
                         : '0 8px 32px rgba(0,0,0,0.15)'
                     }
                   }}
+                  onClick={() => handleItemClick(item)}
                 >
                   <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' } }}>
                     {/* Image Section */}
@@ -474,7 +682,7 @@ const StudentMarketplace = () => {
                     >
                       <CardMedia
                         component="img"
-                        image={item.images?.[0] ? `http://localhost:3001/${item.images[0]}` : '/placeholder.jpg'}
+                        image={getImageUrl(item.images?.[0])}
                         alt={item.title}
                         sx={{
                           position: 'absolute',
@@ -585,21 +793,28 @@ const StudentMarketplace = () => {
                         <Button
                           variant="contained"
                           startIcon={<ShoppingCart />}
-                          onClick={() => handleInterest(item._id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddToCart(item);
+                          }}
                           sx={{
-                            background: 'linear-gradient(135deg, #1976d2, #42a5f5)',
+                            background: 'linear-gradient(135deg, #4CAF50, #66BB6A)',
                             '&:hover': {
-                              background: 'linear-gradient(135deg, #1565c0, #1976d2)'
+                              background: 'linear-gradient(135deg, #388E3C, #4CAF50)'
                             },
                             px: 3,
                             py: 1
                           }}
                         >
-                          Show Interest
+                          Add to Cart
                         </Button>
                         <Button
                           variant="outlined"
                           startIcon={<Visibility />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleItemClick(item);
+                          }}
                           sx={{
                             borderColor: isDarkMode ? 'rgba(255,255,255,0.3)' : undefined,
                             color: isDarkMode ? 'rgba(255,255,255,0.8)' : undefined,
@@ -690,7 +905,7 @@ const StudentMarketplace = () => {
                     >
                       <CardMedia
                            component="img"
-                           image={item.images?.[0] ? `http://localhost:3001/${item.images[0]}` : '/placeholder.jpg'}
+                           image={getImageUrl(item.images?.[0])}
                            alt={item.title}
                         sx={{
                           position: 'absolute',
@@ -871,149 +1086,380 @@ const StudentMarketplace = () => {
       <Dialog 
         open={openDialog} 
         onClose={() => setOpenDialog(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: isDarkMode 
+              ? 'linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%)' 
+              : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+            boxShadow: isDarkMode 
+              ? '0 20px 40px rgba(0,0,0,0.4)' 
+              : '0 20px 40px rgba(0,0,0,0.1)',
+          }
+        }}
       >
-        <DialogTitle>{editingItem ? 'Edit Item' : 'Sell an Item'}</DialogTitle>
+        <DialogTitle 
+          sx={{ 
+            background: isDarkMode 
+              ? 'linear-gradient(135deg, #CD1C18 0%, #9B1313 100%)' 
+              : 'linear-gradient(135deg, #CD1C18 0%, #FFA896 100%)',
+            color: 'white',
+            textAlign: 'center',
+            py: 3,
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            borderRadius: '12px 12px 0 0'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+            <Add sx={{ fontSize: '2rem' }} />
+            {editingItem ? 'Edit Your Item' : 'List Your Item for Sale'}
+          </Box>
+        </DialogTitle>
+        
         <form onSubmit={handleSubmit}>
-          <DialogContent>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Title"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  multiline
-                  rows={3}
-                  required
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  fullWidth
-                  label="Price ($)"
-                  name="price"
-                  type="number"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  required
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  fullWidth
-                  label="Location"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleInputChange}
-                  required
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Category</InputLabel>
-                  <Select
-                    name="category"
-                    value={formData.category}
+          <DialogContent sx={{ p: 4 }}>
+            {error && (
+              <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+                {error}
+              </Alert>
+            )}
+            
+            {success && (
+              <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
+                {success}
+              </Alert>
+            )}
+
+            {/* Basic Information Section */}
+            <Box sx={{ mb: 4 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  mb: 3, 
+                  color: isDarkMode ? '#ffffff' : '#333333',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <Category color="primary" />
+                Basic Information
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Item Title"
+                    name="title"
+                    value={formData.title}
                     onChange={handleInputChange}
-                    label="Category"
-                  >
-                    {categories.map(cat => (
-                      <MenuItem key={cat} value={cat}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Condition</InputLabel>
-                  <Select
-                    name="condition"
-                    value={formData.condition}
-                    onChange={handleInputChange}
-                    label="Condition"
-                  >
-                    {conditions.map(cond => (
-                      <MenuItem key={cond} value={cond}>
-                        {cond.charAt(0).toUpperCase() + cond.slice(1)}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  fullWidth
-                  label="Phone (Optional)"
-                  name="contactInfo.phone"
-                  value={formData.contactInfo.phone}
-                  onChange={handleInputChange}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  name="contactInfo.email"
-                  value={formData.contactInfo.email}
-                  onChange={handleInputChange}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Images (Max 5)
-                  </Typography>
-                  <input
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    id="image-upload"
-                    multiple
-                    type="file"
-                    onChange={handleImageSelect}
+                    required
+                    placeholder="e.g., iPhone 13 Pro Max - Excellent Condition"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }
+                    }}
                   />
-                  <label htmlFor="image-upload">
-                    <Button
-                      variant="outlined"
-                      component="span"
-                      startIcon={<PhotoCamera />}
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    multiline
+                    rows={4}
+                    required
+                    placeholder="Describe your item in detail - condition, features, reason for selling, etc."
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Pricing & Location Section */}
+            <Box sx={{ mb: 4 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  mb: 3, 
+                  color: isDarkMode ? '#ffffff' : '#333333',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <AttachMoney color="primary" />
+                Pricing & Location
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Price (₹)"
+                    name="price"
+                    type="number"
+                    value={formData.price}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="0"
+                    InputProps={{
+                      startAdornment: <Typography sx={{ mr: 1, color: 'text.secondary' }}>₹</Typography>
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Location"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="e.g., Campus Hostel A, Room 201"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Category & Condition Section */}
+             <Box sx={{ mb: 4 }}>
+               <Typography 
+                 variant="h6" 
+                 sx={{ 
+                   mb: 3, 
+                   color: isDarkMode ? '#ffffff' : '#333333',
+                   fontWeight: 600,
+                   display: 'flex',
+                   alignItems: 'center',
+                   gap: 1
+                 }}
+               >
+                 <Category color="primary" />
+                 Category and Condition
+               </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth required sx={{ minWidth: '200px' }}>
+                    <InputLabel>Category</InputLabel>
+                    <Select
+                      name="category"
+                      value={formData.category}
+                      onChange={handleInputChange}
+                      label="Category"
+                      sx={{
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }}
                     >
-                      Add Images
-                    </Button>
-                  </label>
-                  <Box display="flex" gap={1} mt={1} flexWrap="wrap">
+                      {categories.map(cat => (
+                        <MenuItem key={cat} value={cat}>
+                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth required sx={{ minWidth: '200px' }}>
+                    <InputLabel>Condition</InputLabel>
+                    <Select
+                      name="condition"
+                      value={formData.condition}
+                      onChange={handleInputChange}
+                      label="Condition"
+                      sx={{
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      {conditions.map(cond => (
+                        <MenuItem key={cond} value={cond}>
+                          {cond.charAt(0).toUpperCase() + cond.slice(1)}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Contact Information Section */}
+            <Box sx={{ mb: 4 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  mb: 3, 
+                  color: isDarkMode ? '#ffffff' : '#333333',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <Person color="primary" />
+                Contact Information
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Phone Number (Optional)"
+                    name="contactInfo.phone"
+                    value={formData.contactInfo.phone}
+                    onChange={handleInputChange}
+                    placeholder="+91 98765 43210"
+                    InputProps={{
+                      startAdornment: <Phone sx={{ mr: 1, color: 'text.secondary' }} />
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Email Address"
+                    name="contactInfo.email"
+                    value={formData.contactInfo.email}
+                    onChange={handleInputChange}
+                    required
+                    type="email"
+                    InputProps={{
+                      startAdornment: <Email sx={{ mr: 1, color: 'text.secondary' }} />
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      }
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Images Section */}
+            <Box sx={{ mb: 2 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  mb: 3, 
+                  color: isDarkMode ? '#ffffff' : '#333333',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <PhotoCamera color="primary" />
+                Product Images
+              </Typography>
+              
+              <Box 
+                sx={{ 
+                  p: 3, 
+                  border: `2px dashed ${isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`,
+                  borderRadius: 3,
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                  textAlign: 'center'
+                }}
+              >
+                <input
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  id="image-upload"
+                  multiple
+                  type="file"
+                  onChange={handleImageSelect}
+                />
+                <label htmlFor="image-upload">
+                  <Button
+                    variant="contained"
+                    component="span"
+                    startIcon={<PhotoCamera />}
+                    sx={{
+                      background: 'linear-gradient(135deg, #1976d2, #42a5f5)',
+                      borderRadius: 2,
+                      px: 4,
+                      py: 1.5,
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #1565c0, #1976d2)',
+                      }
+                    }}
+                  >
+                    Upload Images
+                  </Button>
+                </label>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Upload up to 5 high-quality images of your item
+                </Typography>
+                
+                {selectedImages.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
                     {selectedImages.map((image, index) => (
-                      <Box key={index} position="relative">
+                      <Box 
+                        key={index} 
+                        sx={{ 
+                          position: 'relative',
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                        }}
+                      >
                         <img
                           src={URL.createObjectURL(image)}
                           alt={`Preview ${index}`}
-                          style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4 }}
+                          style={{ 
+                            width: 100, 
+                            height: 100, 
+                            objectFit: 'cover'
+                          }}
                         />
                         <IconButton
                           size="small"
                           onClick={() => removeImage(index)}
                           sx={{
                             position: 'absolute',
-                            top: -8,
-                            right: -8,
-                            bgcolor: 'error.main',
+                            top: 4,
+                            right: 4,
+                            bgcolor: 'rgba(244, 67, 54, 0.9)',
                             color: 'white',
-                            '&:hover': { bgcolor: 'error.dark' }
+                            width: 24,
+                            height: 24,
+                            '&:hover': { 
+                              bgcolor: 'error.dark',
+                              transform: 'scale(1.1)'
+                            }
                           }}
                         >
                           <Delete fontSize="small" />
@@ -1021,18 +1467,70 @@ const StudentMarketplace = () => {
                       </Box>
                     ))}
                   </Box>
-                </Box>
-              </Grid>
-            </Grid>
+                )}
+              </Box>
+            </Box>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={loading}>
-              {loading ? 'Uploading...' : 'Submit for Approval'}
+          
+          <DialogActions 
+            sx={{ 
+              p: 3, 
+              background: isDarkMode 
+                ? 'rgba(255,255,255,0.05)' 
+                : 'rgba(0,0,0,0.02)',
+              gap: 2,
+              justifyContent: 'center'
+            }}
+          >
+            <Button 
+              onClick={() => setOpenDialog(false)}
+              variant="outlined"
+              sx={{ 
+                borderRadius: 2,
+                px: 4,
+                py: 1.5,
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+                color: isDarkMode ? '#ffffff' : '#333333'
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              variant="contained" 
+              disabled={loading}
+              sx={{
+                background: 'linear-gradient(135deg, #4CAF50, #66BB6A)',
+                borderRadius: 2,
+                px: 4,
+                py: 1.5,
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #388E3C, #4CAF50)',
+                },
+                '&:disabled': {
+                  background: 'rgba(0,0,0,0.12)'
+                }
+              }}
+            >
+              {loading ? 'Submitting...' : (editingItem ? 'Update Item' : 'Submit for Approval')}
             </Button>
           </DialogActions>
         </form>
       </Dialog>
+
+      {/* Cart Notification Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+        sx={{
+          '& .MuiSnackbarContent-root': {
+            backgroundColor: '#4CAF50',
+            color: 'white'
+          }
+        }}
+      />
     </Box>
   );
 };

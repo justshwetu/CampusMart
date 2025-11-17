@@ -33,6 +33,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import axios from 'axios';
 
+// Helper function to construct image URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=200&fit=crop&crop=center';
+  
+  // If it's already a full URL (like Unsplash), return as is
+  if (imagePath.startsWith('http')) {
+    return imagePath;
+  }
+  
+  // If it's a relative path, prepend the backend URL
+  return `http://localhost:3001/${imagePath}`;
+};
+
 const Dashboard = () => {
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
@@ -78,6 +91,14 @@ const Dashboard = () => {
     setSearchTerm(e.target.value);
   };
 
+  const handleSearchSubmit = (e) => {
+    if (e.key === 'Enter' || e.type === 'click') {
+      if (searchTerm.trim()) {
+        navigate(`/marketplace?search=${encodeURIComponent(searchTerm.trim())}`);
+      }
+    }
+  };
+
   const handleVendorClick = (vendorId) => {
     navigate(`/vendor/${vendorId}`);
   };
@@ -119,6 +140,7 @@ const Dashboard = () => {
           placeholder="Search for food, vendors, or items..."
           value={searchTerm}
           onChange={handleSearch}
+          onKeyPress={handleSearchSubmit}
           sx={{
             maxWidth: 500,
             '& .MuiOutlinedInput-root': {
@@ -133,13 +155,32 @@ const Dashboard = () => {
               '& input::placeholder': {
                 color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)',
                 opacity: 1
+              },
+              '&:hover': {
+                backgroundColor: isDarkMode 
+                  ? 'rgba(255, 255, 255, 0.2)' 
+                  : 'rgba(255, 255, 255, 0.95)'
               }
             }
           }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <Search color="action" />
+                <IconButton 
+                  onClick={handleSearchSubmit} 
+                  size="small"
+                  sx={{
+                    color: isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)',
+                    '&:hover': {
+                      backgroundColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.1)' 
+                        : 'rgba(0, 0, 0, 0.04)',
+                      color: isDarkMode ? '#ffffff' : '#333333'
+                    }
+                  }}
+                >
+                  <Search />
+                </IconButton>
               </InputAdornment>
             ),
           }}
@@ -272,7 +313,7 @@ const Dashboard = () => {
       
       {loading ? (
         <Grid container spacing={2}>
-          {[...Array(4)].map((_, index) => (
+          {[...Array(3)].map((_, index) => (
             <Grid item xs={12} sm={6} md={3} key={index}>
               <Card>
                 <Skeleton variant="rectangular" height={200} />
@@ -287,42 +328,231 @@ const Dashboard = () => {
       ) : (
         <Grid container spacing={2}>
           {products.map((product) => (
-            <Grid item xs={12} sm={6} md={3} key={product._id}>
+            <Grid item xs={3} sm={2.4} md={1.5} key={product._id}>
               <Card
                 sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
+                  borderRadius: 3,
+                  overflow: 'hidden',
                   '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 3
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.15)'
                   }
                 }}
-                onClick={() => handleProductClick(product._id)}
+                onClick={() => navigate(`/vendor/${product.vendor?._id}`)}
               >
                 <CardMedia
                   component="img"
-                  height="200"
-                  image={product.images?.[0] || '/placeholder-food.jpg'}
+                  height="60"
+                  image={getImageUrl(product.images?.[0])}
                   alt={product.name}
-                  sx={{ objectFit: 'cover' }}
+                  sx={{ 
+                    objectFit: 'cover',
+                    transition: 'transform 0.3s ease',
+                    '&:hover': {
+                      transform: 'scale(1.05)'
+                    }
+                  }}
                 />
-                <CardContent sx={{ p: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, fontSize: '1rem' }}>
-                    {product.name}
+                <CardContent sx={{ p: 0.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      mb: 0.2, 
+                      fontSize: '0.65rem',
+                      lineHeight: 1,
+                      minHeight: '1.3rem',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {product.name.substring(0, 12)}...
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    {product.vendor?.vendorDetails?.businessName}
+                  <Typography 
+                    variant="caption" 
+                    color="text.secondary" 
+                    sx={{ 
+                      mb: 0.3,
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontWeight: 400,
+                      fontSize: '0.5rem'
+                    }}
+                  >
+                    <Store sx={{ fontSize: 8, mr: 0.2 }} />
+                    {(product.vendor?.vendorDetails?.businessName || 'Campus').substring(0, 8)}
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography variant="h6" color="primary.main" sx={{ fontWeight: 600 }}>
-                      ₹{product.price}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Star sx={{ fontSize: 16, color: '#ffc107', mr: 0.5 }} />
-                      <Typography variant="caption">
-                        {product.rating?.average?.toFixed(1) || '0.0'}
+                  <Box sx={{ mt: 'auto' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.2 }}>
+                      <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>
+                        ₹{product.price}
                       </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Star sx={{ fontSize: 8, color: '#ffc107', mr: 0.1 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.5rem' }}>
+                          {product.rating?.average?.toFixed(1) || '4.5'}
+                        </Typography>
+                      </Box>
                     </Box>
+                    <Chip
+                      label={(product.category || 'Food').substring(0, 4)}
+                      size="small"
+                      sx={{
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        fontWeight: 500,
+                        textTransform: 'capitalize',
+                        fontSize: '0.45rem',
+                        height: '14px',
+                        minWidth: '30px',
+                        '& .MuiChip-label': {
+                          px: 0.3
+                        }
+                      }}
+                    />
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
+    </Box>
+  );
+
+  const renderMarketplaceItems = () => (
+    <Box sx={{ mb: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+          <ShoppingBag sx={{ mr: 1, color: 'primary.main' }} />
+          Student Marketplace
+        </Typography>
+        <Button
+          variant="outlined"
+          onClick={() => navigate('/marketplace')}
+          sx={{ borderRadius: 2 }}
+        >
+          View All
+        </Button>
+      </Box>
+      
+      {loading ? (
+        <Grid container spacing={2}>
+          {[...Array(4)].map((_, index) => (
+            <Grid item xs={12} sm={6} md={3} key={index}>
+              <Card>
+                <Skeleton variant="rectangular" height={180} />
+                <CardContent>
+                  <Skeleton variant="text" height={20} />
+                  <Skeleton variant="text" height={16} width="60%" />
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <Grid container spacing={2}>
+          {marketplaceItems.slice(0, 3).map((item) => (
+            <Grid item xs={12} sm={4} md={4} key={item._id}>
+              <Card
+                sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.15)'
+                  }
+                }}
+                onClick={() => navigate('/marketplace')}
+              >
+                <CardMedia
+                  component="img"
+                  height="120"
+                  image={getImageUrl(item.images?.[0])}
+                  alt={item.title}
+                  sx={{ 
+                    objectFit: 'cover',
+                    transition: 'transform 0.3s ease',
+                    aspectRatio: '1/1',
+                    '&:hover': {
+                      transform: 'scale(1.05)'
+                    }
+                  }}
+                />
+                <CardContent sx={{ p: 0.8, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      mb: 0.4, 
+                      fontSize: '0.7rem',
+                      lineHeight: 1.1,
+                      minHeight: '1.4rem',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {item.title}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    color="text.secondary" 
+                    sx={{ 
+                      mb: 0.7,
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontWeight: 500,
+                      fontSize: '0.6rem'
+                    }}
+                  >
+                    <LocationOn sx={{ fontSize: 10, mr: 0.2 }} />
+                    {item.location}
+                  </Typography>
+                  <Box sx={{ mt: 'auto' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.4 }}>
+                      <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
+                        ₹{item.price}
+                      </Typography>
+                      <Chip
+                        label={item.condition}
+                        size="small"
+                        sx={{
+                          bgcolor: item.condition === 'new' ? '#4caf50' : 
+                                   item.condition === 'like-new' ? '#2196f3' : 
+                                   item.condition === 'good' ? '#ff9800' : '#757575',
+                          color: 'white',
+                          fontWeight: 600,
+                          textTransform: 'capitalize',
+                          fontSize: '0.55rem',
+                          height: '16px'
+                        }}
+                      />
+                    </Box>
+                    <Chip
+                      label={item.category}
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        textTransform: 'capitalize',
+                        fontWeight: 500,
+                        fontSize: '0.5rem',
+                        height: '14px'
+                      }}
+                    />
                   </Box>
                 </CardContent>
               </Card>
@@ -364,57 +594,66 @@ const Dashboard = () => {
           ))}
         </Grid>
       ) : (
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           {vendors.map((vendor) => (
             <Grid item xs={12} md={4} key={vendor._id}>
               <Card
                 sx={{
+                  height: '100%',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
+                  borderRadius: 3,
                   '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 3
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.15)'
                   }
                 }}
-                onClick={() => handleVendorClick(vendor._id)}
+                onClick={() => navigate('/vendors')}
               >
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
                     <Box
                       sx={{
-                        width: 60,
-                        height: 60,
+                        width: 70,
+                        height: 70,
                         borderRadius: '50%',
                         background: 'linear-gradient(135deg, #e23744, #ff6b75)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        mr: 2
+                        mr: 2,
+                        boxShadow: '0 4px 16px rgba(226, 55, 68, 0.3)'
                       }}
                     >
-                      <Restaurant sx={{ color: 'white', fontSize: 28 }} />
+                      <Restaurant sx={{ color: 'white', fontSize: 32 }} />
                     </Box>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem', mb: 0.5 }}>
                         {vendor.vendorDetails?.businessName}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
                         {vendor.name}
                       </Typography>
                     </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <LocationOn sx={{ fontSize: 16, color: 'text.secondary', mr: 0.5 }} />
-                    <Typography variant="body2" color="text.secondary">
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <LocationOn sx={{ fontSize: 18, color: 'text.secondary', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
                       {vendor.vendorDetails?.location}
                     </Typography>
                   </Box>
-                  <Chip
-                    label={vendor.vendorDetails?.businessType}
-                    size="small"
-                    variant="outlined"
-                    color="primary"
-                  />
+                  <Box sx={{ mt: 'auto' }}>
+                    <Chip
+                      label={vendor.vendorDetails?.businessType}
+                      size="medium"
+                      sx={{
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        fontWeight: 600,
+                        px: 1
+                      }}
+                    />
+                  </Box>
                 </CardContent>
               </Card>
             </Grid>
@@ -555,7 +794,7 @@ const Dashboard = () => {
       <Container maxWidth="lg" sx={{ py: 4, position: 'relative', zIndex: 10 }}>
         {renderWelcomeSection()}
         {renderQuickActions()}
-        {renderFeaturedProducts()}
+        {user?.role === 'student' && marketplaceItems.length > 0 && renderMarketplaceItems()}
         {renderTopVendors()}
       </Container>
     </Box>

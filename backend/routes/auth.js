@@ -1,10 +1,10 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
+const router = express.Router();
 const User = require('../models/User');
+const jwt = require('jsonwebtoken');
 const { auth } = require('../middleware/auth');
 const { uploadSingle } = require('../middleware/upload');
-
-const router = express.Router();
+const { generateOtp, hashOtp, verifyOtpHash, canSendAgain, sendOtpEmail } = require('../services/otp');
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -18,10 +18,18 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role, phone, college, studentId, vendorDetails } = req.body;
 
-    // Check if user already exists
+    // Check if user already exists with email
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists with this email' });
+    }
+
+    // Check if student ID already exists (for student registration)
+    if (role === 'student' && studentId) {
+      const existingStudent = await User.findOne({ studentId });
+      if (existingStudent) {
+        return res.status(400).json({ message: 'Student ID already exists. Please use a different Student ID.' });
+      }
     }
 
     // Validate required fields based on role
@@ -76,7 +84,27 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error during registration' });
+    
+    // Handle specific MongoDB errors
+    if (error.code === 11000) {
+      // Duplicate key error
+      if (error.keyPattern && error.keyPattern.email) {
+        return res.status(400).json({ message: 'Email already exists. Please use a different email address.' });
+      }
+      if (error.keyPattern && error.keyPattern.studentId) {
+        return res.status(400).json({ message: 'Student ID already exists. Please use a different Student ID.' });
+      }
+      return res.status(400).json({ message: 'Duplicate information detected. Please check your details.' });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ message: messages.join(', ') });
+    }
+    
+    // Generic server error
+    res.status(500).json({ message: 'Server error during registration. Please try again.' });
   }
 });
 
@@ -104,11 +132,35 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Update last login
+    // If 2FA enabled, send OTP and require verification before issuing token
+    if (user.twoFactorEnabled) {
+      const now = new Date();
+      if (!canSendAgain(user.otpLastSentAt)) {
+        return res.status(429).json({ message: 'Please wait before requesting another code', otpRequired: true });
+      }
+      const { code, expiresAt } = generateOtp();
+      user.otpCodeHash = await hashOtp(code);
+      user.otpExpiresAt = expiresAt;
+      user.otpLastSentAt = now;
+      await user.save();
+
+      try {
+        await sendOtpEmail(user.email, code);
+      } catch (e) {
+        console.error('Failed to send OTP email:', e?.message || e);
+      }
+
+      return res.json({
+        message: 'Verification code sent to your email',
+        otpRequired: true,
+        email: user.email
+      });
+    }
+
+    // Update last login and issue token when 2FA is not enabled
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate token
     const token = generateToken(user._id);
 
     res.json({
@@ -127,6 +179,95 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// @route   POST /api/auth/request-otp
+// @desc    Request a one-time login code via email
+// @access  Public
+router.post('/request-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ message: 'No account found for this email' });
+    }
+
+    if (!canSendAgain(user.otpLastSentAt)) {
+      return res.status(429).json({ message: 'Please wait before requesting another code' });
+    }
+
+    const { code, expiresAt } = generateOtp();
+    user.otpCodeHash = await hashOtp(code);
+    user.otpExpiresAt = expiresAt;
+    user.otpLastSentAt = new Date();
+    await user.save();
+
+    try {
+      await sendOtpEmail(user.email, code);
+    } catch (e) {
+      console.error('Failed to send OTP email:', e?.message || e);
+    }
+
+    res.json({ message: 'Verification code sent to your email' });
+  } catch (error) {
+    console.error('Request OTP error:', error);
+    res.status(500).json({ message: 'Server error while requesting OTP' });
+  }
+});
+
+// @route   POST /api/auth/verify-otp
+// @desc    Verify login code and issue JWT
+// @access  Public
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Email and code are required' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user || !user.otpCodeHash || !user.otpExpiresAt) {
+      return res.status(400).json({ message: 'No active verification code. Please request a new one.' });
+    }
+
+    if (new Date() > new Date(user.otpExpiresAt)) {
+      return res.status(400).json({ message: 'Verification code has expired' });
+    }
+
+    const valid = await verifyOtpHash(code, user.otpCodeHash);
+    if (!valid) {
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+
+    // Clear OTP fields and update lastLogin
+    user.otpCodeHash = null;
+    user.otpExpiresAt = null;
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Issue token
+    const token = generateToken(user._id);
+    res.json({
+      message: 'Verification successful',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        college: user.college,
+        vendorDetails: user.vendorDetails,
+        profileImage: user.profileImage
+      }
+    });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ message: 'Server error while verifying OTP' });
   }
 });
 

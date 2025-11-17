@@ -46,9 +46,12 @@ const AdminDashboard = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  // NEW: pending vendors state
+  const [pendingVendors, setPendingVendors] = useState([]);
 
   useEffect(() => {
     fetchPendingItems();
+    fetchPendingVendors();
   }, []);
 
   const fetchPendingItems = async () => {
@@ -62,6 +65,23 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error fetching pending items:', error);
       setError('Failed to load pending items');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // NEW: fetch pending vendors
+  const fetchPendingVendors = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/vendors/pending', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPendingVendors(res.data.vendors || []);
+    } catch (e) {
+      console.error('Error fetching pending vendors:', e);
+      setError(e.response?.data?.message || 'Failed to load pending vendors');
     } finally {
       setLoading(false);
     }
@@ -83,6 +103,23 @@ const AdminDashboard = () => {
     }
   };
 
+  // NEW: approve vendor
+  const handleApproveVendor = async (vendorId) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      await axios.put(`/vendors/${vendorId}/approve`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuccess('Vendor approved successfully!');
+      fetchPendingVendors();
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to approve vendor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleReject = async () => {
     if (!selectedItem || !rejectionReason.trim()) {
       setError('Please provide a rejection reason');
@@ -93,7 +130,7 @@ const AdminDashboard = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       await axios.put(`/marketplace/${selectedItem._id}/reject`, {
-        rejectionReason: rejectionReason
+        reason: rejectionReason
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -255,9 +292,17 @@ const AdminDashboard = () => {
             <Tab 
               label={
                 <Badge badgeContent={pendingItems.length} color="warning">
-                  Pending Approvals
+                  Pending Marketplace
                 </Badge>
               } 
+            />
+            {/* NEW: Vendor approvals tab */}
+            <Tab 
+              label={
+                <Badge badgeContent={pendingVendors.length} color="info">
+                  Vendor Approvals
+                </Badge>
+              }
             />
             <Tab label="Platform Analytics" />
           </Tabs>
@@ -488,18 +533,102 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 1 && (
-          <Card sx={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)' }}>
-            <CardContent>
-              <Box textAlign="center" py={4}>
-                <Typography variant="h6" color="text.secondary">
-                  Platform Analytics Coming Soon
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  User statistics, marketplace metrics, and performance data will be available here.
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <Grid container spacing={3}>
+            {pendingVendors.length === 0 ? (
+              <Grid item xs={12}>
+                <Card sx={{ 
+                  background: isDarkMode 
+                    ? 'rgba(255,255,255,0.1)' 
+                    : 'rgba(255,255,255,0.95)', 
+                  backdropFilter: 'blur(10px)',
+                  border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : 'none'
+                }}>
+                  <CardContent>
+                    <Box textAlign="center" py={4}>
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          color: isDarkMode ? 'rgba(255,255,255,0.8)' : 'text.secondary'
+                        }}
+                      >
+                        No pending vendors for approval
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ) : (
+              pendingVendors.map((vendor) => (
+                <Grid item xs={12} md={6} lg={4} key={vendor._id}>
+                  <Card 
+                    sx={{ 
+                      height: '100%',
+                      background: isDarkMode 
+                        ? 'rgba(255,255,255,0.1)' 
+                        : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : 'none',
+                      transition: 'all 0.3s ease',
+                      '&:hover': { transform: 'translateY(-4px)' }
+                    }}
+                  >
+                    <CardContent>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Avatar src={vendor.profileImage ? `http://localhost:3001/${vendor.profileImage}` : undefined} />
+                        <Box>
+                          <Typography variant="h6" sx={{ color: isDarkMode ? 'white' : 'inherit' }}>
+                            {vendor.name}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: isDarkMode ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
+                            {vendor.vendorDetails?.businessName} • {vendor.vendorDetails?.businessType}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <Box mt={2} display="flex" flexDirection="column" gap={1}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Email fontSize="small" sx={{ color: isDarkMode ? 'rgba(255,255,255,0.6)' : 'action.active' }} />
+                          <Typography variant="caption">{vendor.email}</Typography>
+                        </Box>
+                        {vendor.phone && (
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Phone fontSize="small" sx={{ color: isDarkMode ? 'rgba(255,255,255,0.6)' : 'action.active' }} />
+                            <Typography variant="caption">{vendor.phone}</Typography>
+                          </Box>
+                        )}
+                        {vendor.vendorDetails?.location && (
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <LocationOn fontSize="small" sx={{ color: isDarkMode ? 'rgba(255,255,255,0.6)' : 'action.active' }} />
+                            <Typography variant="caption">{vendor.vendorDetails.location}</Typography>
+                          </Box>
+                        )}
+                      </Box>
+
+                      <Divider sx={{ my: 2, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : undefined }} />
+
+                      <Box display="flex" gap={1}>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          startIcon={<CheckCircle />}
+                          onClick={() => handleApproveVendor(vendor._id)}
+                          disabled={loading}
+                          fullWidth
+                        >
+                          Approve Vendor
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))
+            )}
+          </Grid>
+        )}
+
+        {activeTab === 1 && (
+          <></>
         )}
       </Container>
 

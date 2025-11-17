@@ -4,27 +4,39 @@ const User = require('../models/User');
 // Verify JWT token
 const auth = async (req, res, next) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const authHeader = req.header('Authorization');
+    console.log('Auth header received:', authHeader);
+    
+    const token = authHeader?.replace('Bearer ', '');
     
     if (!token) {
+      console.log('No token provided');
       return res.status(401).json({ message: 'No token provided, authorization denied' });
     }
 
+    console.log('Token received:', token.substring(0, 20) + '...');
+    
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decoded successfully:', decoded.userId);
+    
     const user = await User.findById(decoded.userId).select('-password');
     
     if (!user) {
+      console.log('User not found for token');
       return res.status(401).json({ message: 'Token is not valid' });
     }
 
     if (!user.isActive) {
+      console.log('User account is deactivated');
       return res.status(401).json({ message: 'Account is deactivated' });
     }
 
+    console.log('Authentication successful for user:', user.email);
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    console.error('Auth middleware error:', error.message);
+    console.error('Token that failed:', req.header('Authorization'));
     res.status(401).json({ message: 'Token is not valid' });
   }
 };

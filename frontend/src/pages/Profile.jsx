@@ -1,738 +1,500 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   Container,
   Typography,
   Box,
+  Grid,
   Card,
   CardContent,
   TextField,
   Button,
-  Grid,
   Avatar,
+  Paper,
   Divider,
   Alert,
-  IconButton,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+  Tabs,
+  Tab,
   Chip,
-  Paper
+  IconButton
 } from '@mui/material';
 import {
-  Edit,
-  Save,
-  Cancel,
   Person,
   Email,
   Phone,
-  School,
   LocationOn,
-  CalendarToday,
-  Badge
+  Edit,
+  Save,
+  Cancel,
+  Store,
+  PhotoCamera
 } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import AuthContext from '../contexts/AuthContext';
 import axios from 'axios';
 
 const Profile = () => {
-  const { user, updateUser } = useAuth();
-  const { isDarkMode } = useTheme();
+  const { user, updateUser } = useContext(AuthContext);
+  const [activeTab, setActiveTab] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [formData, setFormData] = useState({
+  const [message, setMessage] = useState({ type: '', text: '' });
+  
+  const [profileData, setProfileData] = useState({
     name: '',
     email: '',
     phone: '',
-    college: '',
-    studentId: '',
-    year: '',
-    department: '',
     address: '',
-    dateOfBirth: '',
-    emergencyContact: '',
-    bio: ''
+    bio: '',
+    profilePicture: ''
+  });
+
+  const [vendorData, setVendorData] = useState({
+    businessName: '',
+    businessType: '',
+    description: '',
+    address: '',
+    phone: '',
+    website: ''
   });
 
   useEffect(() => {
     if (user) {
-      setFormData({
+      setProfileData({
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
-        college: user.college || '',
-        studentId: user.studentId || '',
-        year: user.year || '',
-        department: user.department || '',
         address: user.address || '',
-        dateOfBirth: user.dateOfBirth ? user.dateOfBirth.split('T')[0] : '',
-        emergencyContact: user.emergencyContact || '',
-        bio: user.bio || ''
+        bio: user.bio || '',
+        profilePicture: user.profilePicture || ''
       });
+
+      if (user.role === 'vendor' && user.vendorDetails) {
+        setVendorData({
+          businessName: user.vendorDetails.businessName || '',
+          businessType: user.vendorDetails.businessType || '',
+          description: user.vendorDetails.description || '',
+          address: user.vendorDetails.address || '',
+          phone: user.vendorDetails.phone || '',
+          website: user.vendorDetails.website || ''
+        });
+      }
     }
   }, [user]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  const handleInputChange = (field, value) => {
+    setProfileData(prev => ({
       ...prev,
-      [name]: value
+      [field]: value
     }));
   };
 
-  const handleSave = async () => {
+  const handleVendorInputChange = (field, value) => {
+    setVendorData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSaveProfile = async () => {
     try {
       setLoading(true);
-      setError('');
-      
       const token = localStorage.getItem('token');
-      const response = await axios.put('/auth/profile', formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
       
+      const updateData = {
+        ...profileData,
+        ...(user.role === 'vendor' && { vendorDetails: vendorData })
+      };
+
+      const response = await axios.put(
+        'http://localhost:3001/api/auth/profile',
+        updateData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
       updateUser(response.data.user);
-      setSuccess('Profile updated successfully!');
+      setMessage({ type: 'success', text: 'Profile updated successfully!' });
       setIsEditing(false);
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to update profile');
+      console.error('Error updating profile:', error);
+      setMessage({ 
+        type: 'error', 
+        text: error.response?.data?.message || 'Failed to update profile' 
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleCancel = () => {
+    // Reset to original data
     if (user) {
-      setFormData({
+      setProfileData({
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
-        college: user.college || '',
-        studentId: user.studentId || '',
-        year: user.year || '',
-        department: user.department || '',
         address: user.address || '',
-        dateOfBirth: user.dateOfBirth ? user.dateOfBirth.split('T')[0] : '',
-        emergencyContact: user.emergencyContact || '',
-        bio: user.bio || ''
+        bio: user.bio || '',
+        profilePicture: user.profilePicture || ''
       });
+
+      if (user.role === 'vendor' && user.vendorDetails) {
+        setVendorData({
+          businessName: user.vendorDetails.businessName || '',
+          businessType: user.vendorDetails.businessType || '',
+          description: user.vendorDetails.description || '',
+          address: user.vendorDetails.address || '',
+          phone: user.vendorDetails.phone || '',
+          website: user.vendorDetails.website || ''
+        });
+      }
     }
     setIsEditing(false);
-    setError('');
+    setMessage({ type: '', text: '' });
   };
 
-  const getInitials = (name) => {
-    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
-  };
+  const ProfileTab = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={4}>
+        <Card>
+          <CardContent sx={{ textAlign: 'center' }}>
+            <Box position="relative" display="inline-block">
+              <Avatar
+                sx={{ 
+                  width: 120, 
+                  height: 120, 
+                  mx: 'auto', 
+                  mb: 2,
+                  bgcolor: 'primary.main',
+                  fontSize: '3rem'
+                }}
+                src={profileData.profilePicture}
+              >
+                {profileData.name?.charAt(0)?.toUpperCase()}
+              </Avatar>
+              {isEditing && (
+                <IconButton
+                  sx={{
+                    position: 'absolute',
+                    bottom: 16,
+                    right: -8,
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                    '&:hover': { bgcolor: 'primary.dark' }
+                  }}
+                  size="small"
+                >
+                  <PhotoCamera />
+                </IconButton>
+              )}
+            </Box>
+            
+            <Typography variant="h5" gutterBottom>
+              {profileData.name}
+            </Typography>
+            
+            <Chip 
+              label={user?.role?.toUpperCase()} 
+              color="primary" 
+              sx={{ mb: 2 }}
+            />
+            
+            {profileData.bio && (
+              <Typography variant="body2" color="text.secondary">
+                {profileData.bio}
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+      </Grid>
 
-  const textFieldSx = {
-    '& .MuiInputLabel-root': {
-      color: isDarkMode ? 'rgba(255,255,255,0.7)' : undefined
-    },
-    '& .MuiInputBase-input': {
-      color: isDarkMode ? 'white' : undefined
-    },
-    '& .MuiFilledInput-root': {
-      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : undefined,
-      '&:hover': {
-        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.15)' : undefined
-      }
-    },
-    '& .MuiOutlinedInput-root': {
-      '& fieldset': {
-        borderColor: isDarkMode ? 'rgba(255,255,255,0.3)' : undefined
-      },
-      '&:hover fieldset': {
-        borderColor: isDarkMode ? 'rgba(255,255,255,0.5)' : undefined
-      }
-    }
-  };
+      <Grid item xs={12} md={8}>
+        <Card>
+          <CardContent>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="h6">Personal Information</Typography>
+              {!isEditing ? (
+                <Button
+                  startIcon={<Edit />}
+                  onClick={() => setIsEditing(true)}
+                  variant="outlined"
+                >
+                  Edit Profile
+                </Button>
+              ) : (
+                <Box>
+                  <Button
+                    startIcon={<Save />}
+                    onClick={handleSaveProfile}
+                    variant="contained"
+                    disabled={loading}
+                    sx={{ mr: 1 }}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    startIcon={<Cancel />}
+                    onClick={handleCancel}
+                    variant="outlined"
+                  >
+                    Cancel
+                  </Button>
+                </Box>
+              )}
+            </Box>
 
-  return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: isDarkMode 
-          ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
-          : 'linear-gradient(135deg, #B71C1C 0%, #D32F2F 100%)',
-        py: 4,
-        position: 'relative',
-        overflow: 'hidden'
-      }}
-    >
-      {/* Animated Background Elements */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: 'none',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: '-50%',
-            left: '-50%',
-            width: '200%',
-            height: '200%',
-            background: `
-              radial-gradient(circle at 25% 75%, rgba(255, 255, 255, 0.12) 0%, transparent 50%),
-              radial-gradient(circle at 75% 25%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-              radial-gradient(circle at 45% 55%, rgba(255, 255, 255, 0.06) 0%, transparent 50%)
-            `,
-            animation: 'profileFloat 24s ease-in-out infinite'
-          },
-          '&::after': {
-            content: '""',
-            position: 'absolute',
-            top: '-50%',
-            right: '-50%',
-            width: '200%',
-            height: '200%',
-            background: `
-              radial-gradient(circle at 65% 35%, rgba(255, 255, 255, 0.09) 0%, transparent 50%),
-              radial-gradient(circle at 85% 85%, rgba(255, 255, 255, 0.07) 0%, transparent 50%)
-            `,
-            animation: 'profileFloat 28s ease-in-out infinite reverse'
-          },
-          '@keyframes profileFloat': {
-            '0%, 100%': {
-              transform: 'translate(0px, 0px) rotate(0deg)'
-            },
-            '25%': {
-              transform: 'translate(20px, -30px) rotate(90deg)'
-            },
-            '50%': {
-              transform: 'translate(-25px, -20px) rotate(180deg)'
-            },
-            '75%': {
-              transform: 'translate(-15px, 25px) rotate(270deg)'
-            }
-          }
-        }}
-      />
-      
-      {/* Floating Geometric Shapes - Profile themed */}
-      {[...Array(9)].map((_, index) => {
-        const shapeType = index % 3; // 0: circle, 1: square, 2: diamond
-        return (
-          <Box
-            key={index}
-            sx={{
-              position: 'absolute',
-              width: { xs: '40px', md: '55px' },
-              height: { xs: '40px', md: '55px' },
-              background: `rgba(255, 255, 255, ${0.04 + (index * 0.01)})`,
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              top: `${5 + (index * 10)}%`,
-              right: `${2 + (index * 11)}%`,
-              animation: `profileShape${index} ${14 + index * 1.8}s ease-in-out infinite`,
-              zIndex: 0,
-              // Circle shape
-              ...(shapeType === 0 && {
-                borderRadius: '50%',
-              }),
-              // Square shape
-              ...(shapeType === 1 && {
-                borderRadius: '15%',
-              }),
-              // Diamond shape
-              ...(shapeType === 2 && {
-                borderRadius: '10%',
-                transform: 'rotate(45deg)',
-              }),
-              [`@keyframes profileShape${index}`]: {
-                '0%, 100%': { 
-                  transform: shapeType === 2 
-                    ? 'rotate(45deg) translateY(0px)' 
-                    : 'translateY(0px) rotate(0deg)' 
-                },
-                '33%': { 
-                  transform: shapeType === 2 
-                    ? 'rotate(45deg) translateY(-15px)' 
-                    : 'translateY(-15px) rotate(120deg)' 
-                },
-                '66%': { 
-                  transform: shapeType === 2 
-                    ? 'rotate(45deg) translateY(10px)' 
-                    : 'translateY(10px) rotate(240deg)' 
-                }
-              }
-            }}
-          />
-        );
-      })}
-       
-       {/* Content Wrapper */}
-       <Box sx={{ position: 'relative', zIndex: 1 }}>
-      <Container maxWidth="lg">
-        {/* Header */}
-        <Box textAlign="center" mb={4}>
-          <Typography 
-            variant="h4" 
-            gutterBottom 
-            sx={{ 
-              color: 'white', 
-              fontWeight: 700,
-              textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-            }}
-          >
-            My Profile
-          </Typography>
-          <Typography 
-            variant="body1" 
-            sx={{ 
-              color: 'rgba(255, 255, 255, 0.9)',
-              mb: 2
-            }}
-          >
-            Manage your account settings and personal information
-          </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Full Name"
+                  value={profileData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  disabled={!isEditing}
+                  InputProps={{
+                    startAdornment: <Person sx={{ mr: 1, color: 'text.secondary' }} />
+                  }}
+                />
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  value={profileData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  disabled={!isEditing}
+                  InputProps={{
+                    startAdornment: <Email sx={{ mr: 1, color: 'text.secondary' }} />
+                  }}
+                />
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Phone"
+                  value={profileData.phone}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  disabled={!isEditing}
+                  InputProps={{
+                    startAdornment: <Phone sx={{ mr: 1, color: 'text.secondary' }} />
+                  }}
+                />
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Address"
+                  value={profileData.address}
+                  onChange={(e) => handleInputChange('address', e.target.value)}
+                  disabled={!isEditing}
+                  InputProps={{
+                    startAdornment: <LocationOn sx={{ mr: 1, color: 'text.secondary' }} />
+                  }}
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Bio"
+                  multiline
+                  rows={3}
+                  value={profileData.bio}
+                  onChange={(e) => handleInputChange('bio', e.target.value)}
+                  disabled={!isEditing}
+                  placeholder="Tell us about yourself..."
+                />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+
+  const VendorTab = () => (
+    <Card>
+      <CardContent>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h6">Vendor Information</Typography>
+          {!isEditing ? (
+            <Button
+              startIcon={<Edit />}
+              onClick={() => setIsEditing(true)}
+              variant="outlined"
+            >
+              Edit Vendor Details
+            </Button>
+          ) : (
+            <Box>
+              <Button
+                startIcon={<Save />}
+                onClick={handleSaveProfile}
+                variant="contained"
+                disabled={loading}
+                sx={{ mr: 1 }}
+              >
+                Save
+              </Button>
+              <Button
+                startIcon={<Cancel />}
+                onClick={handleCancel}
+                variant="outlined"
+              >
+                Cancel
+              </Button>
+            </Box>
+          )}
         </Box>
 
-        {/* Alerts */}
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-            {error}
-          </Alert>
-        )}
-        {success && (
-          <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
-            {success}
-          </Alert>
-        )}
-
-        <Grid container spacing={4} justifyContent="center" alignItems="flex-start">
-          {/* Profile Card */}
-          <Grid item xs={12} md={6}>
-            <Paper 
-              elevation={0}
-              sx={{
-                p: 3,
-                background: isDarkMode 
-                  ? 'rgba(255,255,255,0.05)'
-                  : 'rgba(255,255,255,0.7)',
-                borderRadius: 2,
-                border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)'
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Business Name"
+              value={vendorData.businessName}
+              onChange={(e) => handleVendorInputChange('businessName', e.target.value)}
+              disabled={!isEditing}
+              InputProps={{
+                startAdornment: <Store sx={{ mr: 1, color: 'text.secondary' }} />
               }}
-            >
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600, 
-                  mb: 3, 
-                  color: isDarkMode ? 'rgba(255,255,255,0.9)' : 'primary.main',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <Person sx={{ mr: 1 }} />
-                Profile Information
-              </Typography>
-              
-              <Grid container spacing={3} alignItems="center">
-                {/* Avatar Section */}
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 100,
-                        height: 100,
-                        mx: 'auto',
-                        mb: 2,
-                        background: 'linear-gradient(135deg, #B71C1C, #D32F2F)',
-                        fontSize: '2rem',
-                        fontWeight: 'bold',
-                        boxShadow: '0 4px 20px rgba(183, 28, 28, 0.3)'
-                      }}
-                    >
-                      {getInitials(formData.name)}
-                    </Avatar>
-                    
-                    <Chip 
-                      icon={<Badge />}
-                      label="Student"
-                      color="primary"
-                      size="small"
-                      sx={{ 
-                        color: 'white',
-                        '& .MuiChip-icon': {
-                          color: 'white'
-                        }
-                      }}
-                    />
-                  </Box>
-                </Grid>
-                
-                {/* Name and Bio Section */}
-                <Grid item xs={12} md={5}>
-                  <Typography 
-                    variant="h5" 
-                    gutterBottom 
-                    sx={{ 
-                      fontWeight: 600,
-                      color: isDarkMode ? 'white' : 'inherit',
-                      mb: 1
-                    }}
-                  >
-                    {formData.name || 'Student Name'}
-                  </Typography>
-                  
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      color: isDarkMode ? 'rgba(255,255,255,0.8)' : 'text.secondary',
-                      lineHeight: 1.6
-                    }}
-                  >
-                    {formData.bio || 'No bio available. Click edit to add your personal description.'}
-                  </Typography>
-                </Grid>
-                
-                {/* Action Button Section */}
-                <Grid item xs={12} md={3}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Button
-                      variant={isEditing ? "outlined" : "contained"}
-                      startIcon={isEditing ? <Cancel /> : <Edit />}
-                      onClick={() => isEditing ? handleCancel() : setIsEditing(true)}
-                      fullWidth
-                      sx={{
-                        background: isEditing ? 'transparent' : 'linear-gradient(135deg, #B71C1C, #D32F2F)',
-                        '&:hover': {
-                          background: isEditing ? 'rgba(183, 28, 28, 0.1)' : 'linear-gradient(135deg, #D32F2F, #B71C1C)'
-                        }
-                      }}
-                    >
-                      {isEditing ? 'Cancel' : 'Edit Profile'}
-                    </Button>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
+            />
           </Grid>
-
-          {/* Profile Information */}
-          <Grid item xs={12} md={6}>
-            <Card 
-              sx={{ 
-                background: isDarkMode 
-                  ? 'rgba(255,255,255,0.1)'
-                  : 'rgba(255,255,255,0.95)',
-                backdropFilter: 'blur(15px)',
-                borderRadius: 3,
-                boxShadow: isDarkMode
-                  ? '0 8px 32px rgba(0,0,0,0.3)'
-                  : '0 8px 32px rgba(0,0,0,0.1)',
-                border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : 'none'
+          
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Business Type"
+              value={vendorData.businessType}
+              onChange={(e) => handleVendorInputChange('businessType', e.target.value)}
+              disabled={!isEditing}
+            />
+          </Grid>
+          
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Business Description"
+              multiline
+              rows={3}
+              value={vendorData.description}
+              onChange={(e) => handleVendorInputChange('description', e.target.value)}
+              disabled={!isEditing}
+              placeholder="Describe your business..."
+            />
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Business Address"
+              value={vendorData.address}
+              onChange={(e) => handleVendorInputChange('address', e.target.value)}
+              disabled={!isEditing}
+              InputProps={{
+                startAdornment: <LocationOn sx={{ mr: 1, color: 'text.secondary' }} />
               }}
-            >
-              <CardContent sx={{ p: 4 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                  <Typography 
-                    variant="h6" 
-                    sx={{ 
-                      fontWeight: 600,
-                      color: isDarkMode ? 'white' : 'inherit'
-                    }}
-                  >
-                    Personal Information
-                  </Typography>
-                  {isEditing && (
-                    <Button
-                      variant="contained"
-                      startIcon={<Save />}
-                      onClick={handleSave}
-                      disabled={loading}
-                      sx={{
-                        background: 'linear-gradient(135deg, #4CAF50, #45a049)',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #45a049, #4CAF50)'
-                        }
-                      }}
-                    >
-                      {loading ? 'Saving...' : 'Save Changes'}
-                    </Button>
-                  )}
-                </Box>
-
-                <Grid container spacing={4}>
-                  {/* Basic Information Section */}
-                  <Grid item xs={12}>
-                    <Paper 
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        background: isDarkMode 
-                          ? 'rgba(255,255,255,0.05)'
-                          : 'rgba(255,255,255,0.7)',
-                        borderRadius: 2,
-                        border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      <Typography 
-                        variant="h6" 
-                        sx={{ 
-                          fontWeight: 600, 
-                          mb: 3, 
-                          color: isDarkMode ? 'rgba(255,255,255,0.9)' : 'primary.main',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <Person sx={{ mr: 1 }} />
-                        Basic Information
-                      </Typography>
-                      
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Full Name"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Email Address"
-                            name="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Phone Number"
-                            name="phone"
-                            value={formData.phone}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Date of Birth"
-                            name="dateOfBirth"
-                            type="date"
-                            value={formData.dateOfBirth}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            InputLabelProps={{ shrink: true }}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                      </Grid>
-                    </Paper>
-                  </Grid>
-
-                  {/* Academic Information Section */}
-                  <Grid item xs={12}>
-                    <Paper 
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        background: isDarkMode 
-                          ? 'rgba(255,255,255,0.05)'
-                          : 'rgba(255,255,255,0.7)',
-                        borderRadius: 2,
-                        border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      <Typography 
-                        variant="h6" 
-                        sx={{ 
-                          fontWeight: 600, 
-                          mb: 3, 
-                          color: isDarkMode ? 'rgba(255,255,255,0.9)' : 'primary.main',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <School sx={{ mr: 1 }} />
-                        Academic Information
-                      </Typography>
-                      
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="College/University"
-                            name="college"
-                            value={formData.college}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Student ID"
-                            name="studentId"
-                            value={formData.studentId}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                          <FormControl fullWidth disabled={!isEditing} sx={{ ...textFieldSx, minWidth: '200px' }}>
-                            <InputLabel sx={{ color: isDarkMode ? 'rgba(255,255,255,0.7)' : undefined }}>Academic Year</InputLabel>
-                            <Select
-                              name="year"
-                              value={formData.year}
-                              onChange={handleInputChange}
-                              label="Academic Year"
-                              variant={isEditing ? "outlined" : "filled"}
-                              sx={{
-                                color: isDarkMode ? 'white' : undefined,
-                                minWidth: '100%',
-                                '& .MuiSelect-select': {
-                                  paddingRight: '32px !important',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  minWidth: 'auto'
-                                },
-                                '& .MuiSelect-icon': {
-                                  color: isDarkMode ? 'rgba(255,255,255,0.7)' : undefined
-                                }
-                              }}
-                            >
-                              <MenuItem value="1st Year">1st Year</MenuItem>
-                              <MenuItem value="2nd Year">2nd Year</MenuItem>
-                              <MenuItem value="3rd Year">3rd Year</MenuItem>
-                              <MenuItem value="4th Year">4th Year</MenuItem>
-                              <MenuItem value="Graduate">Graduate</MenuItem>
-                              <MenuItem value="Postgraduate">Postgraduate</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Department/Major"
-                            name="department"
-                            value={formData.department}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                      </Grid>
-                    </Paper>
-                  </Grid>
-
-                  {/* Contact Information Section */}
-                  <Grid item xs={12}>
-                    <Paper 
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        background: isDarkMode 
-                          ? 'rgba(255,255,255,0.05)'
-                          : 'rgba(255,255,255,0.7)',
-                        borderRadius: 2,
-                        border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      <Typography 
-                        variant="h6" 
-                        sx={{ 
-                          fontWeight: 600, 
-                          mb: 3, 
-                          color: isDarkMode ? 'rgba(255,255,255,0.9)' : 'primary.main',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <LocationOn sx={{ mr: 1 }} />
-                        Contact Information
-                      </Typography>
-                      
-                      <Grid container spacing={3}>
-                        <Grid item xs={12}>
-                          <TextField
-                            fullWidth
-                            label="Address"
-                            name="address"
-                            value={formData.address}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            multiline
-                            rows={2}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                          <TextField
-                            fullWidth
-                            label="Emergency Contact"
-                            name="emergencyContact"
-                            value={formData.emergencyContact}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                        
-                        <Grid item xs={12}>
-                          <TextField
-                            fullWidth
-                            label="Bio"
-                            name="bio"
-                            value={formData.bio}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            variant={isEditing ? "outlined" : "filled"}
-                            multiline
-                            rows={3}
-                            placeholder="Tell us about yourself..."
-                            sx={textFieldSx}
-                          />
-                        </Grid>
-                      </Grid>
-                    </Paper>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
+            />
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Business Phone"
+              value={vendorData.phone}
+              onChange={(e) => handleVendorInputChange('phone', e.target.value)}
+              disabled={!isEditing}
+              InputProps={{
+                startAdornment: <Phone sx={{ mr: 1, color: 'text.secondary' }} />
+              }}
+            />
+          </Grid>
+          
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Website"
+              value={vendorData.website}
+              onChange={(e) => handleVendorInputChange('website', e.target.value)}
+              disabled={!isEditing}
+              placeholder="https://your-website.com"
+            />
           </Grid>
         </Grid>
-       </Container>
-       </Box>
-     </Box>
-   );
- };
+      </CardContent>
+    </Card>
+  );
+
+  if (!user) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="warning">
+          Please log in to access your profile.
+        </Alert>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        My Profile
+      </Typography>
+
+      {message.text && (
+        <Alert 
+          severity={message.type} 
+          sx={{ mb: 3 }}
+          onClose={() => setMessage({ type: '', text: '' })}
+        >
+          {message.text}
+        </Alert>
+      )}
+
+      <Paper sx={{ width: '100%', p: 2 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={3}>
+            <Tabs
+              orientation="vertical"
+              value={activeTab}
+              onChange={handleTabChange}
+              indicatorColor="primary"
+              textColor="primary"
+            >
+              <Tab 
+                icon={<Person />} 
+                label="Profile" 
+                iconPosition="start"
+              />
+              {user.role === 'vendor' && (
+                <Tab 
+                  icon={<Store />} 
+                  label="Vendor Details" 
+                  iconPosition="start"
+                />
+              )}
+            </Tabs>
+          </Grid>
+          <Grid item xs={12} md={9}>
+            <Box sx={{ p: 1 }}>
+              {activeTab === 0 && <ProfileTab />}
+              {activeTab === 1 && user.role === 'vendor' && <VendorTab />}
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+    </Container>
+  );
+};
 
 export default Profile;

@@ -31,11 +31,13 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCart } from '../contexts/CartContext';
 
 const Navbar = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const { user, logout } = useAuth();
   const { isDarkMode, themeMode, toggleTheme } = useTheme();
+  const { getCartItemsCount } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -72,7 +74,8 @@ const Navbar = () => {
       }
     ];
 
-    if (user?.role === 'vendor') {
+    // Show My Business only when vendor is approved
+    if (user?.role === 'vendor' && user?.vendorDetails?.isApproved) {
       items.push({
         label: 'My Business',
         path: '/vendor-dashboard',
@@ -86,6 +89,16 @@ const Navbar = () => {
         label: 'Marketplace',
         path: '/marketplace',
         icon: <ShoppingBag />,
+        roles: ['student', 'admin']
+      });
+    }
+
+    // Add Vendors directory for students/admin to browse approved vendors
+    if (user?.role === 'student' || user?.role === 'admin') {
+      items.push({
+        label: 'Vendors',
+        path: '/vendors',
+        icon: <Store />,
         roles: ['student', 'admin']
       });
     }
@@ -280,7 +293,7 @@ const Navbar = () => {
           </Tooltip>
           {/* Cart Icon (for students) */}
           {user?.role === 'student' && (
-            <Tooltip title="Cart">
+            <Tooltip title={`Cart (${getCartItemsCount()} items)`}>
               <IconButton
                 color="inherit"
                 onClick={() => navigate('/cart')}
@@ -304,7 +317,25 @@ const Navbar = () => {
                   }
                 }}
               >
-                <ShoppingCart />
+                <Badge 
+                  badgeContent={getCartItemsCount()} 
+                  color="error"
+                  sx={{
+                    '& .MuiBadge-badge': {
+                      background: 'linear-gradient(45deg, #FF6B6B, #FF8E53)',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      minWidth: '20px',
+                      height: '20px',
+                      borderRadius: '10px',
+                      border: '2px solid rgba(255,255,255,0.8)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                    }
+                  }}
+                >
+                  <ShoppingCart />
+                </Badge>
               </IconButton>
             </Tooltip>
           )}

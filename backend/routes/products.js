@@ -92,7 +92,7 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Get products error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -105,7 +105,7 @@ router.get('/categories', async (req, res) => {
     res.json({ categories });
   } catch (error) {
     console.error('Get categories error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -116,17 +116,16 @@ router.get('/featured', async (req, res) => {
   try {
     const featuredProducts = await Product.find({
       isAvailable: true,
-      'rating.average': { $gte: 4.0 },
-      'rating.count': { $gte: 5 }
+      isFeatured: true
     })
     .populate('vendor', 'name vendorDetails.businessName')
-    .sort({ 'rating.average': -1, 'rating.count': -1 })
+    .sort({ 'rating.average': -1, createdAt: -1 })
     .limit(8);
 
     res.json({ products: featuredProducts });
   } catch (error) {
     console.error('Get featured products error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -146,7 +145,7 @@ router.get('/:id', async (req, res) => {
     res.json({ product });
   } catch (error) {
     console.error('Get product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 

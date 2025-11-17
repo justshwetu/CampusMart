@@ -11,8 +11,10 @@ export const useAuth = () => {
   return context;
 };
 
-// Configure axios defaults
+// Configure axios defaults - use environment variable or detect network IP
+// Hardcoded localhost API URL for reliable connection
 axios.defaults.baseURL = 'http://localhost:3001/api';
+console.log('API Base URL set to:', axios.defaults.baseURL);
 
 // Add token to requests if available
 axios.interceptors.request.use(
@@ -32,7 +34,8 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Only redirect on 401 if it's not a login attempt
+    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -54,15 +57,19 @@ export const AuthProvider = ({ children }) => {
         const savedUser = localStorage.getItem('user');
         
         if (token && savedUser) {
-          setUser(JSON.parse(savedUser));
-          
-          // Verify token is still valid
           try {
+            const parsedUser = JSON.parse(savedUser);
+            setUser(parsedUser);
+            
+            // Verify token is still valid
             const response = await axios.get('/auth/me');
-            setUser(response.data.user);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            if (response.data?.user) {
+              setUser(response.data.user);
+              localStorage.setItem('user', JSON.stringify(response.data.user));
+            }
           } catch (error) {
-            // Token is invalid, clear storage
+            console.log('Token verification failed, clearing auth data:', error.message);
+            // Token is invalid or user data is corrupted, clear storage
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             setUser(null);
@@ -70,6 +77,10 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Auth check error:', error);
+        // Clear potentially corrupted data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -83,21 +94,101 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError('');
       
+      console.log('Attempting login with API base URL:', axios.defaults.baseURL);
+      
+      // Add timeout and retry logic
       const response = await axios.post('/auth/login', {
-        email,
+        email: email.trim().toLowerCase(),
         password
+      }, {
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
 
+      // If server requires OTP (2FA), bubble that up
+      if (response.data?.otpRequired) {
+        return { success: false, otpRequired: true, email: response.data.email || email };
+      }
+
       const { token, user: userData } = response.data;
+      
+      if (!token || !userData) {
+        throw new Error('Invalid response from server');
+      }
       
       // Save to localStorage
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(userData));
       
       setUser(userData);
+      console.log('Login successful for user:', userData.email);
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      console.error('Login error:', error);
+      
+      let message = 'Login failed';
+      
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+        message = 'Backend server is not running. Please start the backend server on localhost:3001';
+      } else if (error.response) {
+        // Server responded with error status
+        message = error.response.data?.message || `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        // Request was made but no response received
+        message = 'Cannot connect to backend server. Ensure backend is running on localhost:3001';
+      } else if (error.code === 'ENOTFOUND') {
+        message = 'Network error: Cannot resolve localhost. Check your network configuration.';
+      } else {
+        // Something else happened
+        message = error.message || 'An unexpected error occurred';
+      }
+      
+      console.error('Detailed error info:', {
+        code: error.code,
+        message: error.message,
+        response: error.response?.status,
+        baseURL: axios.defaults.baseURL
+      });
+      
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestOtp = async (email) => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await axios.post('/auth/request-otp', { email: email.trim().toLowerCase() });
+      return { success: true, message: res.data?.message || 'OTP sent' };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to send OTP';
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyOtp = async (email, code) => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await axios.post('/auth/verify-otp', { email: email.trim().toLowerCase(), code: String(code).trim() });
+      const { token, user: userData } = res.data;
+      if (!token || !userData) {
+        throw new Error('Invalid response from server');
+      }
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Invalid or expired code';
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -150,6 +241,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     login,
+    requestOtp,
+    verifyOtp,
     register,
     logout,
     updateUser,

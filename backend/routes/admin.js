@@ -107,8 +107,8 @@ router.get('/dashboard', auth, adminAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Admin dashboard error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Admin dashboard error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -147,8 +147,8 @@ router.get('/users', auth, adminAuth, async (req, res) => {
       totalUsers
     });
   } catch (error) {
-    console.error('Get users error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Get users error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -215,8 +215,8 @@ router.get('/orders', auth, adminAuth, async (req, res) => {
       totalOrders
     });
   } catch (error) {
-    console.error('Get orders error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Get orders error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -256,8 +256,8 @@ router.get('/products', auth, adminAuth, async (req, res) => {
       totalProducts
     });
   } catch (error) {
-    console.error('Get products error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Get products error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -274,8 +274,8 @@ router.delete('/products/:id', auth, adminAuth, async (req, res) => {
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    console.error('Delete product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Delete product error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 
@@ -376,8 +376,8 @@ router.get('/analytics', auth, adminAuth, async (req, res) => {
       period: days
     });
   } catch (error) {
-    console.error('Analytics error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Analytics error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 

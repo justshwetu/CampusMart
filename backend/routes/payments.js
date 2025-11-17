@@ -3,6 +3,7 @@ const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const MarketplaceItem = require('../models/MarketplaceItem');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -117,6 +118,105 @@ router.post('/create-order', auth, async (req, res) => {
   } catch (error) {
     console.error('Create order error:', error);
     res.status(500).json({ message: 'Failed to create order' });
+  }
+});
+
+// @route   POST /api/payments/create-marketplace-order
+// @desc    Create Razorpay order for marketplace items
+// @access  Private
+router.post('/create-marketplace-order', auth, async (req, res) => {
+  try {
+    const { cartItems, customerDetails } = req.body;
+
+    if (!cartItems || cartItems.length === 0) {
+      return res.status(400).json({ message: 'Cart items are required' });
+    }
+
+    // Calculate total amount
+    let totalAmount = 0;
+    const orderItems = [];
+
+    for (const item of cartItems) {
+      const marketplaceItem = await MarketplaceItem.findById(item._id);
+      if (!marketplaceItem) {
+        return res.status(404).json({ message: `Item ${item._id} not found` });
+      }
+
+      if (marketplaceItem.status !== 'approved') {
+        return res.status(400).json({ message: `Item ${marketplaceItem.title} is not available` });
+      }
+
+      const itemTotal = marketplaceItem.price * item.quantity;
+      totalAmount += itemTotal;
+
+      orderItems.push({
+        item: marketplaceItem._id,
+        title: marketplaceItem.title,
+        price: marketplaceItem.price,
+        quantity: item.quantity,
+        seller: marketplaceItem.seller
+      });
+    }
+
+    // Convert to paise (Razorpay expects amount in smallest currency unit)
+    const amountInPaise = Math.round(totalAmount * 100);
+
+    // Create Razorpay order
+    const razorpayOrder = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: 'INR',
+      receipt: `marketplace_${Date.now()}`,
+      notes: {
+        customer_id: req.user._id.toString(),
+        customer_name: req.user.name,
+        order_type: 'marketplace'
+      }
+    });
+
+    // Generate order number
+    const count = await Order.countDocuments();
+    const orderNumber = `CM${Date.now()}${(count + 1).toString().padStart(4, '0')}`;
+
+    // Create order record in database
+    const order = new Order({
+      orderNumber: orderNumber,
+      customer: req.user._id,
+      vendor: req.user._id, // Use customer as vendor for marketplace orders
+      items: orderItems.map(item => ({
+        product: item.item, // Map marketplace item ID to product field
+        quantity: item.quantity,
+        price: item.price,
+        specialInstructions: `Marketplace Item: ${item.title}`
+      })),
+      totalAmount: totalAmount,
+      finalAmount: totalAmount,
+      paymentMethod: 'razorpay',
+      paymentDetails: {
+        razorpayOrderId: razorpayOrder.id,
+        amount: totalAmount,
+        currency: 'INR'
+      },
+      deliveryDetails: {
+        type: 'pickup',
+        phone: req.user.phone || customerDetails?.phone || ''
+      },
+      customerNotes: `Marketplace order - Items: ${orderItems.map(item => item.title).join(', ')}`,
+      status: 'pending',
+      paymentStatus: 'pending'
+    });
+
+    await order.save();
+
+    res.json({
+      orderId: razorpayOrder.id,
+      amount: amountInPaise,
+      currency: 'INR',
+      key: process.env.RAZORPAY_KEY_ID,
+      order: order
+    });
+  } catch (error) {
+    console.error('Create marketplace order error:', error);
+    res.status(500).json({ message: 'Failed to create marketplace order' });
   }
 });
 

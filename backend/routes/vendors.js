@@ -48,9 +48,75 @@ router.get('/', async (req, res) => {
   }
 });
 
+// @route   POST /api/vendors/apply
+// @desc    Apply to become a vendor (sets role and pending approval)
+// @access  Private (Authenticated)
+router.post('/apply', auth, async (req, res) => {
+  try {
+    const { businessName, businessType, location } = req.body;
+
+    if (!businessName || !businessType || !location) {
+      return res.status(400).json({ message: 'businessName, businessType, and location are required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Policy: Only users already registered as 'vendor' may submit or update application details
+    if (user.role !== 'vendor') {
+      return res.status(403).json({
+        message: 'Students cannot become vendors via application. Please register a new vendor account.'
+      });
+    }
+
+    // If already a vendor
+    if (user.vendorDetails?.isApproved) {
+      return res.status(400).json({ message: 'You are already an approved vendor' });
+    }
+
+    // Allow updating application details if pending
+    user.vendorDetails = {
+      ...user.vendorDetails,
+      businessName,
+      businessType,
+      location,
+      isApproved: false
+    };
+    await user.save();
+    const safeUser = await User.findById(user._id).select('-password');
+    return res.json({ message: 'Application updated. Awaiting admin approval.', user: safeUser });
+  } catch (error) {
+    console.error('Vendor apply error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
+  }
+});
+
 // @route   GET /api/vendors/:id
 // @desc    Get vendor details
 // @access  Public
+// @route   GET /api/vendors/pending
+// @desc    Get pending vendor approvals (Admin only)
+// @access  Private (Admin)
+router.get('/pending', auth, adminAuth, async (req, res) => {
+  try {
+    const pendingVendors = await User.find({
+      role: 'vendor',
+      'vendorDetails.isApproved': false,
+      isActive: true
+    }).select('name email phone vendorDetails createdAt');
+
+    res.json({
+      vendors: pendingVendors,
+      count: pendingVendors.length
+    });
+  } catch (error) {
+    console.error('Get pending vendors error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const vendor = await User.findOne({
@@ -272,26 +338,6 @@ router.put('/profile', auth, vendorAuth, async (req, res) => {
   }
 });
 
-// @route   GET /api/vendors/pending
-// @desc    Get pending vendor approvals (Admin only)
-// @access  Private (Admin)
-router.get('/pending', auth, adminAuth, async (req, res) => {
-  try {
-    const pendingVendors = await User.find({
-      role: 'vendor',
-      'vendorDetails.isApproved': false,
-      isActive: true
-    }).select('name email phone vendorDetails createdAt');
-
-    res.json({
-      vendors: pendingVendors,
-      count: pendingVendors.length
-    });
-  } catch (error) {
-    console.error('Get pending vendors error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
 // @route   PUT /api/vendors/:id/approve
 // @desc    Approve vendor (Admin only)
@@ -317,8 +363,8 @@ router.put('/:id/approve', auth, adminAuth, async (req, res) => {
       vendor
     });
   } catch (error) {
-    console.error('Approve vendor error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Approve vendor error:', error?.message || error);
+    res.status(500).json({ message: error?.message || 'Server error' });
   }
 });
 

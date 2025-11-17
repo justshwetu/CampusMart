@@ -99,6 +99,10 @@ const productSchema = new mongoose.Schema({
     type: String,
     enum: ['mild', 'medium', 'hot', 'extra-hot'],
     default: 'mild'
+  },
+  isFeatured: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
