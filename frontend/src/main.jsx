@@ -7,9 +7,9 @@ import { CartProvider } from './contexts/CartContext'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
-// Ensure API URL is correctly set for the current environment
-window.API_BASE_URL = 'http://localhost:3001/api';
-console.log('API Base URL:', window.API_BASE_URL);
+// Informational: API base is configured in AuthContext via VITE_API_BASE_URL or '/api'
+window.API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+console.log('API Base URL (window):', window.API_BASE_URL);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

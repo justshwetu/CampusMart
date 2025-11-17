@@ -31,8 +31,11 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [otpMode, setOtpMode] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpEmail, setOtpEmail] = useState('');
   
-  const { login, loading, error, clearError } = useAuth();
+  const { login, requestOtp, verifyOtp, loading, error, clearError } = useAuth();
   const { isDarkMode } = useTheme();
   const navigate = useNavigate();
 
@@ -59,6 +62,10 @@ const Login = () => {
     
     if (result.success) {
       navigate('/dashboard');
+    } else if (result.otpRequired) {
+      setOtpMode(true);
+      setOtpEmail(result.email || formData.email);
+      setLocalError('');
     }
   };
 
@@ -242,7 +249,8 @@ const Login = () => {
             </Alert>
           )}
 
-          {/* Login Form */}
+          {/* Login Form (Password) */}
+          {!otpMode && (
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
@@ -320,7 +328,7 @@ const Login = () => {
               disabled={loading}
               sx={{
                 mt: 3,
-                mb: 2,
+                mb: 1,
                 py: 1.5,
                 borderRadius: 2,
                 background: 'linear-gradient(135deg, #e23744, #ff6b75)',
@@ -336,7 +344,139 @@ const Login = () => {
             >
               {loading ? 'Signing In...' : 'Sign In'}
             </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              size="large"
+              disabled={loading || !formData.email}
+              onClick={async () => {
+                if (!formData.email) {
+                  setLocalError('Enter your email to get an OTP');
+                  return;
+                }
+                const res = await requestOtp(formData.email);
+                if (res.success) {
+                  setOtpMode(true);
+                  setOtpEmail(formData.email);
+                  setLocalError('');
+                }
+              }}
+              sx={{ mt: 1, borderRadius: 2 }}
+            >
+              {loading ? 'Sending...' : 'Sign in with OTP'}
+            </Button>
           </form>
+          )}
+
+          {/* OTP Verification Form */}
+          {otpMode && (
+            <Box component="form" onSubmit={async (e) => {
+              e.preventDefault();
+              if (!otpEmail || !otpCode) {
+                setLocalError('Enter the code sent to your email');
+                return;
+              }
+              const res = await verifyOtp(otpEmail, otpCode);
+              if (res.success) {
+                navigate('/dashboard');
+              }
+            }}>
+              <TextField
+                fullWidth
+                name="otpEmail"
+                type="email"
+                label="Email Address"
+                value={otpEmail || formData.email}
+                onChange={(e)=> setOtpEmail(e.target.value)}
+                margin="normal"
+                required
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Email color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '&:hover fieldset': { borderColor: '#e23744' },
+                    '&.Mui-focused fieldset': { borderColor: '#e23744' },
+                  },
+                }}
+              />
+
+              <TextField
+                fullWidth
+                name="otpCode"
+                label="Verification Code"
+                value={otpCode}
+                onChange={(e)=> setOtpCode(e.target.value)}
+                margin="normal"
+                placeholder="Enter 6-digit code"
+                inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6 }}
+                required
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '&:hover fieldset': { borderColor: '#e23744' },
+                    '&.Mui-focused fieldset': { borderColor: '#e23744' },
+                  },
+                }}
+              />
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                disabled={loading}
+                sx={{
+                  mt: 3,
+                  mb: 1,
+                  py: 1.5,
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #e23744, #ff6b75)',
+                  boxShadow: '0 4px 20px rgba(226, 55, 68, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #d32f2f, #e23744)',
+                    boxShadow: '0 6px 25px rgba(226, 55, 68, 0.4)',
+                  },
+                  '&:disabled': { background: '#ccc' }
+                }}
+              >
+                {loading ? 'Verifying...' : 'Verify & Sign In'}
+              </Button>
+
+              <Button
+                fullWidth
+                variant="text"
+                disabled={loading}
+                onClick={async () => {
+                  if (!otpEmail) {
+                    setLocalError('Enter your email to get an OTP');
+                    return;
+                  }
+                  await requestOtp(otpEmail);
+                  // no-op on success; code resent
+                }}
+                sx={{ mt: 1 }}
+              >
+                Resend Code
+              </Button>
+
+              <Button
+                fullWidth
+                variant="outlined"
+                disabled={loading}
+                onClick={() => { setOtpMode(false); setOtpCode(''); setLocalError(''); }}
+                sx={{ mt: 1, borderRadius: 2 }}
+              >
+                Use Password Instead
+              </Button>
+            </Box>
+          )}
 
           <Divider sx={{ my: 3 }}>
             <Typography variant="body2" color="text.secondary">

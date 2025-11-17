@@ -12,7 +12,6 @@ import {
   TextField,
   InputAdornment,
   Chip,
-  Rating,
   IconButton,
   Skeleton,
   Alert
@@ -20,14 +19,9 @@ import {
 import {
   Search,
   Restaurant,
-  ShoppingCart,
   Store,
   ShoppingBag,
-  LocationOn,
-  AccessTime,
-  Star,
-  Add,
-  TrendingUp
+  LocationOn
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -42,13 +36,16 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  // If it's a relative path, prepend the backend URL
-  return `http://localhost:3001/${imagePath}`;
+  // If it's a relative path, prepend the backend origin derived from API base
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+  const backendOrigin = API_BASE.startsWith('http')
+    ? new URL(API_BASE).origin
+    : 'http://127.0.0.1:3001';
+  return `${backendOrigin}/${String(imagePath).replace(/^\/+/,'')}`;
 };
 
 const Dashboard = () => {
   const [vendors, setVendors] = useState([]);
-  const [products, setProducts] = useState([]);
   const [marketplaceItems, setMarketplaceItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,33 +56,27 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch vendors
-      const vendorsResponse = await axios.get('/vendors');
-      setVendors(vendorsResponse.data.vendors.slice(0, 6)); // Show top 6
-      
-      // Fetch featured products
-      const productsResponse = await axios.get('/products/featured');
-      setProducts(productsResponse.data.products.slice(0, 8)); // Show top 8
-      
-      // Fetch recent marketplace items (for students)
-      if (user?.role === 'student') {
-        const marketplaceResponse = await axios.get('/marketplace/recent');
-        setMarketplaceItems(marketplaceResponse.data.items.slice(0, 6));
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        // Fetch vendors
+        const vendorsResponse = await axios.get('vendors');
+        setVendors(vendorsResponse.data.vendors.slice(0, 6));
+        // Skip featured products for now; not displayed on this page
+        // Fetch recent marketplace items (for students)
+        if (user?.role === 'student') {
+          const marketplaceResponse = await axios.get('marketplace/recent');
+          setMarketplaceItems(marketplaceResponse.data.items.slice(0, 6));
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setError('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    fetchDashboardData();
+  }, [user]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
@@ -99,13 +90,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleVendorClick = (vendorId) => {
-    navigate(`/vendor/${vendorId}`);
-  };
-
-  const handleProductClick = (productId) => {
-    navigate(`/product/${productId}`);
-  };
+  // removed unused handlers to satisfy lint
 
   const renderWelcomeSection = () => (
     <Box
@@ -295,137 +280,7 @@ const Dashboard = () => {
     </Grid>
   );
 
-  const renderFeaturedProducts = () => (
-    <Box sx={{ mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-          <TrendingUp sx={{ mr: 1, color: 'primary.main' }} />
-          Featured Food Items
-        </Typography>
-        <Button
-          variant="outlined"
-          onClick={() => navigate('/products')}
-          sx={{ borderRadius: 2 }}
-        >
-          View All
-        </Button>
-      </Box>
-      
-      {loading ? (
-        <Grid container spacing={2}>
-          {[...Array(3)].map((_, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
-              <Card>
-                <Skeleton variant="rectangular" height={200} />
-                <CardContent>
-                  <Skeleton variant="text" height={24} />
-                  <Skeleton variant="text" height={20} width="60%" />
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      ) : (
-        <Grid container spacing={2}>
-          {products.map((product) => (
-            <Grid item xs={3} sm={2.4} md={1.5} key={product._id}>
-              <Card
-                sx={{
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  borderRadius: 3,
-                  overflow: 'hidden',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 12px 32px rgba(0,0,0,0.15)'
-                  }
-                }}
-                onClick={() => navigate(`/vendor/${product.vendor?._id}`)}
-              >
-                <CardMedia
-                  component="img"
-                  height="60"
-                  image={getImageUrl(product.images?.[0])}
-                  alt={product.name}
-                  sx={{ 
-                    objectFit: 'cover',
-                    transition: 'transform 0.3s ease',
-                    '&:hover': {
-                      transform: 'scale(1.05)'
-                    }
-                  }}
-                />
-                <CardContent sx={{ p: 0.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Typography 
-                    variant="caption" 
-                    sx={{ 
-                      fontWeight: 600, 
-                      mb: 0.2, 
-                      fontSize: '0.65rem',
-                      lineHeight: 1,
-                      minHeight: '1.3rem',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {product.name.substring(0, 12)}...
-                  </Typography>
-                  <Typography 
-                    variant="caption" 
-                    color="text.secondary" 
-                    sx={{ 
-                      mb: 0.3,
-                      display: 'flex',
-                      alignItems: 'center',
-                      fontWeight: 400,
-                      fontSize: '0.5rem'
-                    }}
-                  >
-                    <Store sx={{ fontSize: 8, mr: 0.2 }} />
-                    {(product.vendor?.vendorDetails?.businessName || 'Campus').substring(0, 8)}
-                  </Typography>
-                  <Box sx={{ mt: 'auto' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.2 }}>
-                      <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>
-                        ₹{product.price}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Star sx={{ fontSize: 8, color: '#ffc107', mr: 0.1 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.5rem' }}>
-                          {product.rating?.average?.toFixed(1) || '4.5'}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Chip
-                      label={(product.category || 'Food').substring(0, 4)}
-                      size="small"
-                      sx={{
-                        bgcolor: 'primary.main',
-                        color: 'white',
-                        fontWeight: 500,
-                        textTransform: 'capitalize',
-                        fontSize: '0.45rem',
-                        height: '14px',
-                        minWidth: '30px',
-                        '& .MuiChip-label': {
-                          px: 0.3
-                        }
-                      }}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-    </Box>
-  );
+  
 
   const renderMarketplaceItems = () => (
     <Box sx={{ mb: 4 }}>

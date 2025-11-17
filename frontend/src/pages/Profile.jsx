@@ -109,7 +109,7 @@ const Profile = () => {
       };
 
       const response = await axios.put(
-        'http://localhost:3001/api/auth/profile',
+        'auth/profile',
         updateData,
         {
           headers: {

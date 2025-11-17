@@ -38,7 +38,7 @@ const ApiTest = () => {
     // Test different API configurations
     const hostname = window.location.hostname;
     const networkUrl = `http://${hostname}:3001/api`;
-    const localUrl = 'http://localhost:3001/api';
+    const localUrl = import.meta.env.VITE_API_BASE_URL || '/api';
     
     console.log('Current hostname:', hostname);
     console.log('Network URL:', networkUrl);

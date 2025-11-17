@@ -86,6 +86,23 @@ const userSchema = new mongoose.Schema({
   },
   lastLogin: {
     type: Date
+  },
+  // 2FA / OTP fields
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false
+  },
+  otpCodeHash: {
+    type: String,
+    default: null
+  },
+  otpExpiresAt: {
+    type: Date,
+    default: null
+  },
+  otpLastSentAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

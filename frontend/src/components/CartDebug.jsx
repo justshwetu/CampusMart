@@ -24,10 +24,7 @@ const CartDebug = () => {
     });
   };
 
-  const addTestItem = () => {
-    // This would need to be implemented in CartContext
-    console.log('Add test item functionality would go here');
-  };
+  // Intentionally minimal: addTestItem removed to satisfy lint (unused)
 
   return (
     <Paper sx={{ p: 2, m: 2 }}>

@@ -1,0 +1,18 @@
+[
+  {
+    "q": "What is Campus Mart?",
+    "a": "Campus Mart is a campus-focused marketplace connecting students and vendors for food, products, and services."
+  },
+  {
+    "q": "How do I become a vendor?",
+    "a": "Go to the Become Vendor page in your profile or vendor section, submit your business details, and an admin will review your request."
+  },
+  {
+    "q": "Where can I track my orders?",
+    "a": "Open the Orders page from the navbar after logging in to view order status and history."
+  },
+  {
+    "q": "I can’t log in, what should I do?",
+    "a": "Use the Sign in with OTP option on the login page to receive a one-time code by email. If issues persist, contact support."
+  }
+]

@@ -28,7 +28,7 @@ const VendorDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await axios.get('/products/vendor/my-products', {
+      const res = await axios.get('products/vendor/my-products', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setProducts(res.data.products || []);
@@ -342,7 +342,14 @@ const VendorDashboard = () => {
                       <CardMedia
                         component="img"
                         height="160"
-                        image={product.images[0].startsWith('http') ? product.images[0] : `http://localhost:3001/${product.images[0]}`}
+                        image={(function(){
+                          const first = product.images[0];
+                          if (!first) return undefined;
+                          if (first.startsWith('http')) return first;
+                          const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+                          const backendOrigin = API_BASE.startsWith('http') ? new URL(API_BASE).origin : 'http://127.0.0.1:3001';
+                          return `${backendOrigin}/${String(first).replace(/^\/+/,'')}`;
+                        })()}
                         alt={product.name}
                       />
                     )}

@@ -15,7 +15,8 @@ const AuthDebug = () => {
     
     // Test API call with current token
     if (token) {
-      fetch('http://localhost:3001/api/auth/me', {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+      fetch(`${API_BASE}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -38,8 +39,9 @@ const AuthDebug = () => {
   };
 
   const loginAsAdmin = async () => {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
     try {
-      const response = await fetch('http://localhost:3001/api/auth/login', {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
@@ -46,11 +47,7 @@ export const CustomThemeProvider = ({ children }) => {
     document.body.setAttribute('data-theme', theme);
   }, [themeMode, isDarkMode]);
 
-  // Set initial theme on body
-  useEffect(() => {
-    const theme = isDarkMode ? 'dark' : 'light';
-    document.body.setAttribute('data-theme', theme);
-  }, []);
+  // Initial set is covered by the effect above; no separate run needed
 
   const toggleTheme = () => {
     if (themeMode === 'light') {

@@ -14,11 +14,17 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-// Configure CORS to allow localhost origins with credentials
+// Configure CORS: be permissive in development to support various preview origins
+const isDev = process.env.NODE_ENV !== 'production';
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
+
+    if (isDev) {
+      // In development, allow any origin to simplify local preview and network URLs
+      return callback(null, true);
+    }
 
     const allowedOrigins = [
       'http://localhost:5173',
@@ -27,10 +33,10 @@ const corsOptions = {
       'http://127.0.0.1:5174'
     ];
 
-    const isLocalhost = allowedOrigins.includes(origin) ||
+    const isAllowed = allowedOrigins.includes(origin) ||
       /^http:\/\/127\.0\.[0-9]+\.[0-9]+:517[3-4]$/.test(origin);
 
-    if (isLocalhost) {
+    if (isAllowed) {
       callback(null, true);
     } else {
       callback(new Error(`Not allowed by CORS: ${origin}`));

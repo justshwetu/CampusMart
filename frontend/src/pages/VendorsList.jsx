@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Container, Box, Typography, TextField, Grid, Card, CardContent, Button } from '@mui/material';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Container, Box, Typography, TextField, Grid, Card, CardContent, Button, Alert } from '@mui/material';
 import { Store } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -9,28 +9,34 @@ const VendorsList = () => {
   const [vendors, setVendors] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const navigate = useNavigate();
 
-  const fetchVendors = async () => {
+  const fetchVendors = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
       if (search) params.search = search;
-      const res = await axios.get('/vendors', { params });
+      const res = await axios.get('vendors', { params });
       setVendors(res.data?.vendors || []);
-    } catch (err) {
-      console.error('Error fetching vendors:', err);
+    } catch {
+      setError('Failed to fetch vendors');
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
 
-  useEffect(() => { fetchVendors(); }, []);
+  useEffect(() => { fetchVendors(); }, [fetchVendors]);
 
   return (
     <>
       <Container maxWidth="lg" sx={{ py: 4 }}>
+        {error && (
+          <Box mb={2}>
+            <Alert severity="error">{error}</Alert>
+          </Box>
+        )}
         <Box display="flex" alignItems="center" gap={2} mb={3}>
           <Store color="primary" />
           <Typography variant="h5" fontWeight={600}>All Vendors</Typography>

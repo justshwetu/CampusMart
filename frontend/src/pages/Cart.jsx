@@ -36,8 +36,12 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  // If it's a relative path, prepend the backend URL
-  return `http://localhost:3001/${imagePath}`;
+  // If it's a relative path, prepend the backend origin derived from API base
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+  const backendOrigin = API_BASE.startsWith('http')
+    ? new URL(API_BASE).origin
+    : 'http://127.0.0.1:3001';
+  return `${backendOrigin}/${String(imagePath).replace(/^\/+/, '')}`;
 };
 
 const Cart = () => {
@@ -112,7 +116,8 @@ const Cart = () => {
         }
 
         // Create vendor product order
-        orderResponse = await fetch('http://localhost:3001/api/payments/create-order', {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+        orderResponse = await fetch(`${API_BASE}/payments/create-order`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -125,7 +130,8 @@ const Cart = () => {
         });
       } else {
         // Marketplace order
-        orderResponse = await fetch('http://localhost:3001/api/payments/create-marketplace-order', {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+        orderResponse = await fetch(`${API_BASE}/payments/create-marketplace-order`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -177,7 +183,8 @@ const Cart = () => {
         handler: async (response) => {
           try {
             // Verify payment on backend
-            const verifyResponse = await fetch('http://localhost:3001/api/payments/verify', {
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+            const verifyResponse = await fetch(`${API_BASE}/payments/verify`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -198,7 +205,6 @@ const Cart = () => {
               
               // Payment successful
               clearCart();
-              setPaymentDialog(false);
               navigate('/orders');
             } else {
               // Parse error response if available
@@ -211,7 +217,7 @@ const Cart = () => {
               }
               throw new Error(errorMessage);
             }
-          } catch (error) {
+          } catch {
             setError('Payment verification failed. Please contact support.');
           }
         },

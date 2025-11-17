@@ -63,12 +63,12 @@ const ProductDetails = () => {
   useEffect(() => {
     fetchProduct();
     fetchReviews();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProduct = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`/products/${id}`);
+      const response = await axios.get(`products/${id}`);
       setProduct(response.data);
       
       // Check if product is in user's favorites
@@ -85,7 +85,7 @@ const ProductDetails = () => {
 
   const fetchReviews = async () => {
     try {
-      const response = await axios.get(`/products/${id}/reviews`);
+      const response = await axios.get(`products/${id}/reviews`);
       setReviews(response.data);
     } catch (error) {
       console.error('Error fetching reviews:', error);
@@ -94,7 +94,7 @@ const ProductDetails = () => {
 
   const checkFavoriteStatus = async () => {
     try {
-      const response = await axios.get('/user/favorites');
+      const response = await axios.get('user/favorites');
       const favorites = response.data;
       setIsFavorite(favorites.some(fav => fav._id === id));
     } catch (error) {

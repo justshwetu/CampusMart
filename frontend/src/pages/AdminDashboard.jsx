@@ -75,7 +75,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await axios.get('/vendors/pending', {
+      const res = await axios.get('vendors/pending', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setPendingVendors(res.data.vendors || []);
@@ -365,7 +365,14 @@ const AdminDashboard = () => {
                     >
                       <CardMedia
                         component="img"
-                        image={`http://localhost:3001/${item.images?.[0]}` || '/placeholder.jpg'}
+                        image={(function(){
+                          const img = item.images?.[0];
+                          if (!img) return '/placeholder.jpg';
+                          if (String(img).startsWith('http')) return img;
+                          const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+                          const backendOrigin = API_BASE.startsWith('http') ? new URL(API_BASE).origin : 'http://127.0.0.1:3001';
+                          return `${backendOrigin}/${String(img).replace(/^\/+/,'')}`;
+                        })()}
                         alt={item.title}
                         sx={{
                           position: 'absolute',
@@ -574,7 +581,14 @@ const AdminDashboard = () => {
                   >
                     <CardContent>
                       <Box display="flex" alignItems="center" gap={2}>
-                        <Avatar src={vendor.profileImage ? `http://localhost:3001/${vendor.profileImage}` : undefined} />
+                        <Avatar src={(function(){
+                          const img = vendor.profileImage;
+                          if (!img) return undefined;
+                          if (String(img).startsWith('http')) return img;
+                          const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+                          const backendOrigin = API_BASE.startsWith('http') ? new URL(API_BASE).origin : 'http://127.0.0.1:3001';
+                          return `${backendOrigin}/${String(img).replace(/^\/+/,'')}`;
+                        })()} />
                         <Box>
                           <Typography variant="h6" sx={{ color: isDarkMode ? 'white' : 'inherit' }}>
                             {vendor.name}

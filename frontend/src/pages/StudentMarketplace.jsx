@@ -57,8 +57,10 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  // If it's a relative path, prepend the backend URL
-  return `http://localhost:3001/${imagePath}`;
+  // If it's a relative path, prepend the backend URL derived from API base
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3001/api';
+  const mediaBase = apiBase.replace(/\/api\/?$/, '/');
+  return `${mediaBase}${String(imagePath).replace(/^\/+/, '')}`;
 };
 
 const StudentMarketplace = () => {
@@ -121,7 +123,7 @@ const StudentMarketplace = () => {
     if (user) {
       fetchMyItems();
     }
-  }, [user, location.search]);
+  }, [user, location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate search suggestions when no results found
   const generateSearchSuggestions = (searchQuery) => {
@@ -145,7 +147,7 @@ const StudentMarketplace = () => {
       if (!append) setLoading(true);
       else setLoadingMore(true);
       
-      let url = `/marketplace?page=${pageNum}&limit=10`;
+      let url = `marketplace?page=${pageNum}&limit=10`;
       if (searchQuery) {
         url += `&search=${encodeURIComponent(searchQuery)}`;
       }
@@ -222,7 +224,7 @@ const StudentMarketplace = () => {
   const fetchMyItems = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/marketplace/my-items', {
+      const response = await axios.get('marketplace/my-items', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMyItems(response.data.items || []);
@@ -340,7 +342,7 @@ const StudentMarketplace = () => {
       addToCart(item);
       setSnackbarMessage(`${item.title} added to cart!`);
       setSnackbarOpen(true);
-    } catch (error) {
+    } catch {
       setError('Failed to add item to cart');
     }
   };

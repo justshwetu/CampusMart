@@ -16,7 +16,7 @@ const VendorStore = () => {
     const fetchVendor = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`/vendors/${id}`);
+        const res = await axios.get(`vendors/${id}`);
         setVendor(res.data?.vendor || null);
         setProducts(res.data?.products || []);
       } catch (err) {

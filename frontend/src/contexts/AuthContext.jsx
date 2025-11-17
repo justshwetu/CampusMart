@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -11,9 +12,9 @@ export const useAuth = () => {
   return context;
 };
 
-// Configure axios defaults - use environment variable or detect network IP
-// Hardcoded localhost API URL for reliable connection
-axios.defaults.baseURL = 'http://localhost:3001/api';
+// Configure axios defaults
+// Prefer explicit API base via env; fallback to proxy path '/api' for dev
+axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
 console.log('API Base URL set to:', axios.defaults.baseURL);
 
 // Add token to requests if available
@@ -62,7 +63,7 @@ export const AuthProvider = ({ children }) => {
             setUser(parsedUser);
             
             // Verify token is still valid
-            const response = await axios.get('/auth/me');
+      const response = await axios.get('auth/me');
             if (response.data?.user) {
               setUser(response.data.user);
               localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -97,7 +98,7 @@ export const AuthProvider = ({ children }) => {
       console.log('Attempting login with API base URL:', axios.defaults.baseURL);
       
       // Add timeout and retry logic
-      const response = await axios.post('/auth/login', {
+      const response = await axios.post('auth/login', {
         email: email.trim().toLowerCase(),
         password
       }, {
@@ -131,7 +132,7 @@ export const AuthProvider = ({ children }) => {
       let message = 'Login failed';
       
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-        message = 'Backend server is not running. Please start the backend server on localhost:3001';
+        message = 'Cannot reach backend. Please ensure the backend dev server is running.';
       } else if (error.response) {
         // Server responded with error status
         message = error.response.data?.message || `Server error: ${error.response.status}`;
@@ -163,7 +164,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError('');
-      const res = await axios.post('/auth/request-otp', { email: email.trim().toLowerCase() });
+      const res = await axios.post('auth/request-otp', { email: email.trim().toLowerCase() });
       return { success: true, message: res.data?.message || 'OTP sent' };
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to send OTP';
@@ -178,7 +179,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError('');
-      const res = await axios.post('/auth/verify-otp', { email: email.trim().toLowerCase(), code: String(code).trim() });
+      const res = await axios.post('auth/verify-otp', { email: email.trim().toLowerCase(), code: String(code).trim() });
       const { token, user: userData } = res.data;
       if (!token || !userData) {
         throw new Error('Invalid response from server');
@@ -201,7 +202,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError('');
       
-      const response = await axios.post('/auth/register', userData);
+      const response = await axios.post('auth/register', userData);
       
       const { token, user: newUser } = response.data;
       
