@@ -73,7 +73,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['razorpay', 'cash', 'upi'],
+    enum: ['razorpay', 'cash', 'upi', 'offline'],
     required: true
   },
   paymentDetails: {
@@ -94,14 +94,17 @@ const orderSchema = new mongoose.Schema({
     estimatedTime: Date,
     actualTime: Date
   },
-  timeline: [{
-    status: String,
-    timestamp: {
-      type: Date,
-      default: Date.now
-    },
-    note: String
-  }],
+  timeline: {
+    type: [{
+      status: String,
+      timestamp: {
+        type: Date,
+        default: Date.now
+      },
+      note: String
+    }],
+    default: []
+  },
   customerNotes: String,
   vendorNotes: String,
   rating: {
@@ -127,13 +130,17 @@ const orderSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate order number before saving
-orderSchema.pre('save', async function(next) {
-  if (!this.orderNumber) {
-    const count = await mongoose.model('Order').countDocuments();
-    this.orderNumber = `CM${Date.now()}${(count + 1).toString().padStart(4, '0')}`;
+// Generate order number before validation to satisfy required constraint
+orderSchema.pre('validate', async function(next) {
+  try {
+    if (!this.orderNumber) {
+      const count = await mongoose.model('Order').countDocuments();
+      this.orderNumber = `CM${Date.now()}${(count + 1).toString().padStart(4, '0')}`;
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 });
 
 // Index for efficient queries

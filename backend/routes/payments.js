@@ -19,6 +19,17 @@ const razorpay = new Razorpay({
 // @access  Private
 router.post('/create-order', auth, async (req, res) => {
   try {
+    // Offline fallback only when explicitly requested AND keys are not configured
+    const hasRazorpayKeys = Boolean(process.env.RAZORPAY_KEY_ID) && Boolean(process.env.RAZORPAY_KEY_SECRET);
+    const isOfflineFallback = ((process.env.PAYMENT_FALLBACK_MODE || '').toLowerCase() === 'offline') && !hasRazorpayKeys;
+
+    // Validate Razorpay configuration early for clearer errors when not offline
+    if (!isOfflineFallback && (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET)) {
+      return res.status(500).json({
+        message: 'Payment gateway not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.',
+      });
+    }
+
     const { items, deliveryDetails, customerNotes } = req.body;
 
     if (!items || items.length === 0) {
@@ -63,6 +74,11 @@ router.post('/create-order', auth, async (req, res) => {
     const taxes = Math.round(totalAmount * 0.05); // 5% tax
     const finalAmount = totalAmount + deliveryFee + taxes;
 
+    // Enforce Razorpay minimum amount of ₹1
+    if (finalAmount < 1) {
+      return res.status(400).json({ message: 'Order total must be at least ₹1 to proceed with payment.' });
+    }
+
     // Create order in database
     const order = new Order({
       customer: req.user._id,
@@ -82,9 +98,34 @@ router.post('/create-order', auth, async (req, res) => {
       customerNotes: customerNotes || ''
     });
 
-    await order.save();
+    // Persist order and surface any validation errors clearly
+    try {
+      await order.save();
+    } catch (saveError) {
+      console.error('Order save error:', saveError);
+      return res.status(500).json({ message: `Order save error: ${saveError?.message || 'unknown error'}` });
+    }
 
-    // Create Razorpay order
+    // Offline fallback: mark order as paid and return success
+    if (isOfflineFallback) {
+      order.paymentMethod = 'offline';
+      order.paymentStatus = 'paid';
+      order.status = 'confirmed';
+      order.timeline.push({
+        status: 'confirmed',
+        timestamp: new Date(),
+        note: 'Offline payment (dev fallback)'
+      });
+      await order.save();
+
+      return res.json({
+        success: true,
+        mode: 'offline',
+        order: order
+      });
+    }
+
+    // Create Razorpay order when keys are configured
     const razorpayOrder = await razorpay.orders.create({
       amount: finalAmount * 100, // Amount in paise
       currency: 'INR',
@@ -117,7 +158,13 @@ router.post('/create-order', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Create order error:', error);
-    res.status(500).json({ message: 'Failed to create order' });
+    let message = 'Failed to create order';
+    if (error?.message?.toLowerCase().includes('key')) {
+      message = 'Payment gateway error: invalid or missing Razorpay keys.';
+    } else if (error?.message?.toLowerCase().includes('amount')) {
+      message = 'Payment gateway error: order amount is below minimum ₹1.';
+    }
+    res.status(500).json({ message });
   }
 });
 
@@ -126,6 +173,17 @@ router.post('/create-order', auth, async (req, res) => {
 // @access  Private
 router.post('/create-marketplace-order', auth, async (req, res) => {
   try {
+    // Offline fallback only when explicitly requested AND keys are not configured
+    const hasRazorpayKeys = Boolean(process.env.RAZORPAY_KEY_ID) && Boolean(process.env.RAZORPAY_KEY_SECRET);
+    const isOfflineFallback = ((process.env.PAYMENT_FALLBACK_MODE || '').toLowerCase() === 'offline') && !hasRazorpayKeys;
+
+    // Validate Razorpay configuration early for clearer errors when not offline
+    if (!isOfflineFallback && (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET)) {
+      return res.status(500).json({
+        message: 'Payment gateway not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.',
+      });
+    }
+
     const { cartItems, customerDetails } = req.body;
 
     if (!cartItems || cartItems.length === 0) {
@@ -161,17 +219,20 @@ router.post('/create-marketplace-order', auth, async (req, res) => {
     // Convert to paise (Razorpay expects amount in smallest currency unit)
     const amountInPaise = Math.round(totalAmount * 100);
 
-    // Create Razorpay order
-    const razorpayOrder = await razorpay.orders.create({
-      amount: amountInPaise,
-      currency: 'INR',
-      receipt: `marketplace_${Date.now()}`,
-      notes: {
-        customer_id: req.user._id.toString(),
-        customer_name: req.user.name,
-        order_type: 'marketplace'
-      }
-    });
+    // If offline fallback, skip Razorpay
+    let razorpayOrder = null;
+    if (!isOfflineFallback) {
+      razorpayOrder = await razorpay.orders.create({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `marketplace_${Date.now()}`,
+        notes: {
+          customer_id: req.user._id.toString(),
+          customer_name: req.user.name,
+          order_type: 'marketplace'
+        }
+      });
+    }
 
     // Generate order number
     const count = await Order.countDocuments();
@@ -190,8 +251,11 @@ router.post('/create-marketplace-order', auth, async (req, res) => {
       })),
       totalAmount: totalAmount,
       finalAmount: totalAmount,
-      paymentMethod: 'razorpay',
-      paymentDetails: {
+      paymentMethod: isOfflineFallback ? 'offline' : 'razorpay',
+      paymentDetails: isOfflineFallback ? {
+        amount: totalAmount,
+        currency: 'INR'
+      } : {
         razorpayOrderId: razorpayOrder.id,
         amount: totalAmount,
         currency: 'INR'
@@ -201,11 +265,19 @@ router.post('/create-marketplace-order', auth, async (req, res) => {
         phone: req.user.phone || customerDetails?.phone || ''
       },
       customerNotes: `Marketplace order - Items: ${orderItems.map(item => item.title).join(', ')}`,
-      status: 'pending',
-      paymentStatus: 'pending'
+      status: isOfflineFallback ? 'confirmed' : 'pending',
+      paymentStatus: isOfflineFallback ? 'paid' : 'pending'
     });
 
     await order.save();
+
+    if (isOfflineFallback) {
+      return res.json({
+        success: true,
+        mode: 'offline',
+        order
+      });
+    }
 
     res.json({
       orderId: razorpayOrder.id,
@@ -216,7 +288,10 @@ router.post('/create-marketplace-order', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Create marketplace order error:', error);
-    res.status(500).json({ message: 'Failed to create marketplace order' });
+    const message = error?.message?.includes('key')
+      ? 'Payment gateway error: invalid or missing Razorpay keys.'
+      : 'Failed to create marketplace order';
+    res.status(500).json({ message });
   }
 });
 
@@ -236,6 +311,18 @@ router.post('/verify', auth, async (req, res) => {
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // If not using Razorpay (offline/cash), short-circuit
+    if (order.paymentMethod !== 'razorpay') {
+      return res.json({ success: true, message: 'Offline payment confirmed', order });
+    }
+
+    // Validate Razorpay secret for verification
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({
+        message: 'Payment verification failed: RAZORPAY_KEY_SECRET not configured.'
+      });
     }
 
     // Verify the payment signature

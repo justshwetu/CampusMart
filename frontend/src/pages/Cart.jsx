@@ -90,13 +90,6 @@ const Cart = () => {
         return;
       }
       
-      // Load Razorpay script
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        setError('Failed to load payment gateway. Please try again.');
-        return;
-      }
-
       // Decide checkout route based on cart item types
       const types = new Set(cartItems.map(ci => ci.type || 'marketplace'));
       if (types.size > 1) {
@@ -178,8 +171,22 @@ const Cart = () => {
       const rpCurrency = orderData?.razorpayOrder?.currency || orderData?.currency || 'INR';
       const localOrderId = orderData?.order?.id || orderData?.order?._id; // DB order id for verification
 
+      // Handle offline/dev fallback: backend marks order paid
+      if (orderData?.mode === 'offline' || orderData?.order?.paymentStatus === 'paid') {
+        clearCart();
+        navigate('/orders');
+        return;
+      }
+
       if (!orderData?.key || !rpOrderId) {
         throw new Error('Invalid payment initialization. Please try again.');
+      }
+
+      // If not offline, ensure Razorpay script is loaded
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        setError('Failed to load payment gateway. Please try again.');
+        return;
       }
 
       // Configure Razorpay options
@@ -242,12 +249,21 @@ const Cart = () => {
         modal: {
           ondismiss: () => {
             setProcessing(false);
+            setError('Payment window closed or cancelled.');
           }
         }
       };
 
-      // Open Razorpay checkout
+      // Open Razorpay checkout and surface failures
       const razorpay = new window.Razorpay(options);
+      if (razorpay && typeof razorpay.on === 'function') {
+        razorpay.on('payment.failed', (response) => {
+          console.error('Payment failed:', response?.error);
+          const desc = response?.error?.description || response?.error?.reason || 'Payment failed. Please try again.';
+          setError(desc);
+          setProcessing(false);
+        });
+      }
       razorpay.open();
       
     } catch (error) {

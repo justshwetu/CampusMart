@@ -27,7 +27,7 @@ const BecomeVendor = () => {
 
     try {
       setLoading(true);
-      const res = await axios.post('/vendors/apply', formData);
+  const res = await axios.post('vendors/apply', formData);
       const updatedUser = res.data?.user;
       if (updatedUser) {
         updateUser(updatedUser);

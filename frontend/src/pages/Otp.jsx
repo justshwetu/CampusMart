@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, Paper, TextField, Button, Typography, Box, Alert, InputAdornment } from '@mui/material';
-import { Email } from '@mui/icons-material';
+import { Email, Restaurant } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const OtpPage = () => {
   const { requestOtp, verifyOtp, loading, error, clearError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDarkMode } = useTheme();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [otpMode, setOtpMode] = useState(false);
@@ -36,6 +39,10 @@ const OtpPage = () => {
       }
     }
   }, [location.state]);
+
+  if (loading) {
+    return <LoadingSpinner message="Just a moment..." />;
+  }
 
   const expirySecondsLeft = useMemo(() => {
     if (!otpExpiresAt) return null;
@@ -90,9 +97,65 @@ const OtpPage = () => {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ py: 6 }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: isDarkMode 
+          ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
+          : 'linear-gradient(135deg, #CD1C18 0%, #FFA896 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 2,
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      <Container maxWidth="sm">
       <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-        <Typography variant="h5" sx={{ mb: 2 }}>One-Time Code Login</Typography>
+        <Box textAlign="center" mb={3}>
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              background: isDarkMode
+                ? 'linear-gradient(135deg, #9B1313, #38000A)'
+                : 'linear-gradient(135deg, #CD1C18, #FFA896)',
+              mb: 2,
+              boxShadow: '0 8px 32px rgba(226, 55, 68, 0.3)'
+            }}
+          >
+            <Restaurant sx={{ fontSize: 40, color: 'white' }} />
+          </Box>
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              background: isDarkMode
+                ? 'linear-gradient(135deg, #FFA896, #CD1C18)'
+                : 'linear-gradient(135deg, #CD1C18, #FFA896)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1
+            }}
+          >
+            Campus Mart
+          </Typography>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'text.secondary'
+            }}
+          >
+            One-Time Code Login
+          </Typography>
+        </Box>
         {(error || localError) && <Alert severity="error" sx={{ mb: 2 }}>{error || localError}</Alert>}
 
         {!otpMode && (
@@ -162,7 +225,8 @@ const OtpPage = () => {
           </Box>
         )}
       </Paper>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

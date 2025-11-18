@@ -26,6 +26,33 @@ const VendorsList = () => {
     return `${backendOrigin}/${String(imagePath).replace(/^\/+/, '')}`;
   };
 
+  // Fallback: pick a shop photo based on vendor name/business type
+  const getNameBasedPhoto = (title, businessType) => {
+    const name = String(title || '').toLowerCase();
+    const type = String(businessType || '').toLowerCase();
+
+    const keywordMatch = (kw) => name.includes(kw) || type.includes(kw);
+
+    let query = 'restaurant,food';
+    if (keywordMatch('pizza')) query = 'pizza,restaurant';
+    else if (keywordMatch('burger')) query = 'burger,restaurant';
+    else if (keywordMatch('cafe') || keywordMatch('coffee')) query = 'cafe,coffee,shop';
+    else if (keywordMatch('chai') || keywordMatch('tea')) query = 'tea,chai,stall';
+    else if (keywordMatch('bakery')) query = 'bakery,shop';
+    else if (keywordMatch('juice')) query = 'juice,bar,shop';
+    else if (keywordMatch('sandwich')) query = 'sandwich,shop';
+    else if (keywordMatch('chinese')) query = 'chinese,restaurant';
+    else if (keywordMatch('south indian') || keywordMatch('dosa')) query = 'south%20indian,restaurant';
+    else if (keywordMatch('north indian') || keywordMatch('biryani')) query = 'north%20indian,restaurant';
+
+    // Use Unsplash featured image by query. As a deterministic fallback, seed by name via picsum.
+    const unsplash = `https://source.unsplash.com/featured/?${query}`;
+    const seed = encodeURIComponent(name || type || 'vendor');
+    const picsum = `https://picsum.photos/seed/${seed}/800/400`;
+    // Prefer Unsplash; picsum ensures uniqueness when Unsplash blocks repeated loads
+    return unsplash || picsum;
+  };
+
   const fetchVendors = useCallback(async () => {
     try {
       setLoading(true);
@@ -103,7 +130,7 @@ const VendorsList = () => {
             const title = v.vendorDetails?.businessName || v.name;
             const location = v.vendorDetails?.location;
             const businessType = v.vendorDetails?.businessType;
-            const banner = getImageUrl(v.profileImage);
+            const banner = getImageUrl(v.profileImage) || getNameBasedPhoto(title, businessType);
             return (
               <Grid item xs={12} sm={6} md={4} key={v._id}>
                 <Card
@@ -130,7 +157,7 @@ const VendorsList = () => {
                       image={banner || (isDarkMode ? undefined : undefined)}
                       alt={title}
                       sx={{
-                        height: { xs: 200, md: 220 },
+                        height: { xs: 180, md: 180 },
                         width: '100%',
                         objectFit: 'cover',
                         background: !banner

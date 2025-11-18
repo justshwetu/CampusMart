@@ -145,10 +145,10 @@ const ProductDetails = () => {
 
     try {
       if (isFavorite) {
-        await axios.delete(`/user/favorites/${id}`);
+  await axios.delete(`user/favorites/${id}`);
         setIsFavorite(false);
       } else {
-        await axios.post(`/user/favorites/${id}`);
+  await axios.post(`user/favorites/${id}`);
         setIsFavorite(true);
       }
     } catch (error) {
@@ -169,7 +169,7 @@ const ProductDetails = () => {
 
     try {
       setSubmittingReview(true);
-      await axios.post(`/products/${id}/reviews`, newReview);
+  await axios.post(`products/${id}/reviews`, newReview);
       setNewReview({ rating: 5, comment: '' });
       fetchReviews(); // Refresh reviews
       alert('Review submitted successfully!');

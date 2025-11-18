@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Container, Typography, Box, Grid, Card, CardContent, TextField, Button, Alert, Chip, Divider, Tabs, Tab, Badge, CardMedia, Stack, Avatar
+  Container, Typography, Box, Grid, Card, CardContent, TextField, Button, Alert, Chip, Divider, Tabs, Tab, Badge, CardMedia, Stack, Avatar, MenuItem
 } from '@mui/material';
 import { useTheme } from '../contexts/ThemeContext';
 import axios from 'axios';
@@ -9,12 +9,14 @@ import { useAuth } from '../contexts/AuthContext';
 const VendorDashboard = () => {
   const { isDarkMode } = useTheme();
   const { user, updateUser } = useAuth();
+  const isSubway = (user?.vendorDetails?.businessName || '').toLowerCase().includes('subway');
+  const CATEGORY_OPTIONS = ['snacks', 'beverages', 'meals', 'desserts', 'fast-food', 'healthy', 'other'];
   const [activeTab, setActiveTab] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: '',
-    category: ''
+    category: 'other'
   });
   const [images, setImages] = useState([]);
   const [products, setProducts] = useState([]);
@@ -69,7 +71,7 @@ const VendorDashboard = () => {
       const token = localStorage.getItem('token');
       // Backend expects 'true'/'false' strings for booleans
       const next = product.isAvailable ? 'false' : 'true';
-      const res = await axios.put(`/products/${product._id}`, { isAvailable: next }, {
+  const res = await axios.put(`products/${product._id}`, { isAvailable: next }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSuccess(`Marked ${res.data?.product?.isAvailable ? 'In Stock' : 'Out of Stock'}`);
@@ -94,7 +96,7 @@ const VendorDashboard = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', price: '', category: '' });
+    setFormData({ name: '', description: '', price: '', category: 'other' });
     setImages([]);
   };
 
@@ -128,7 +130,7 @@ const VendorDashboard = () => {
       images.forEach(file => form.append('images', file));
 
       const token = localStorage.getItem('token');
-      await axios.post('/products', form, {
+  await axios.post('products', form, {
         headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
       });
 
@@ -153,7 +155,7 @@ const VendorDashboard = () => {
       const form = new FormData();
       form.append('profileImage', file);
       const token = localStorage.getItem('token');
-      const res = await axios.put('/auth/profile', form, {
+  const res = await axios.put('auth/profile', form, {
         headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
       });
       const updated = res.data?.user;
@@ -177,7 +179,7 @@ const VendorDashboard = () => {
       setError('');
       setSuccess('');
       const token = localStorage.getItem('token');
-      const res = await axios.put('/auth/profile', { bio }, {
+  const res = await axios.put('auth/profile', { bio }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const updated = res.data?.user;
@@ -313,20 +315,22 @@ const VendorDashboard = () => {
             <Box
               sx={{
                 position: 'absolute', inset: 0,
-                backgroundImage: user?.profileImage ? `url(${getImageUrl(user?.profileImage)})` : undefined,
+                backgroundImage: user?.profileImage && !isSubway ? `url(${getImageUrl(user?.profileImage)})` : undefined,
                 backgroundSize: 'cover', backgroundPosition: 'center',
-                filter: user?.profileImage ? 'brightness(0.8)' : 'none',
-                background: !user?.profileImage ? (isDarkMode ? 'linear-gradient(135deg,#1f1f1f,#333)' : 'linear-gradient(135deg,#FFE4E1,#FFD1C9)') : undefined
+                filter: user?.profileImage && !isSubway ? 'brightness(0.8)' : 'none',
+                background: !user?.profileImage || isSubway ? (isDarkMode ? 'linear-gradient(135deg,#1f1f1f,#333)' : 'linear-gradient(135deg,#FFE4E1,#FFD1C9)') : undefined
               }}
             />
             <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.6) 100%)' }} />
             <Box sx={{ position: 'absolute', inset: 0, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'flex-start', md: 'flex-end' }, justifyContent: 'space-between' }}>
               <Stack direction="row" spacing={2} alignItems="center">
-                <Avatar
-                  src={getImageUrl(user?.profileImage)}
-                  alt={user?.vendorDetails?.businessName || user?.name}
-                  sx={{ width: { xs: 84, md: 110 }, height: { xs: 84, md: 110 }, border: '3px solid rgba(255,255,255,0.9)', boxShadow: '0 8px 16px rgba(0,0,0,0.35)' }}
-                />
+                {!isSubway && (
+                  <Avatar
+                    src={getImageUrl(user?.profileImage)}
+                    alt={user?.vendorDetails?.businessName || user?.name}
+                    sx={{ width: { xs: 84, md: 110 }, height: { xs: 84, md: 110 }, border: '3px solid rgba(255,255,255,0.9)', boxShadow: '0 8px 16px rgba(0,0,0,0.35)' }}
+                  />
+                )}
                 <Box>
                   <Typography variant="h4" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.1 }}>
                     {user?.vendorDetails?.businessName || user?.name || 'My Shop'}
@@ -426,13 +430,21 @@ const VendorDashboard = () => {
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <TextField
+                      select
                       label="Category"
                       name="category"
                       value={formData.category}
                       onChange={handleInputChange}
                       fullWidth
                       required
-                    />
+                      helperText="Choose one of: snacks, beverages, meals, desserts, fast-food, healthy, other"
+                    >
+                      {CATEGORY_OPTIONS.map((opt) => (
+                        <MenuItem key={opt} value={opt}>
+                          {opt.replace('-', ' ')}
+                        </MenuItem>
+                      ))}
+                    </TextField>
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
@@ -501,11 +513,11 @@ const VendorDashboard = () => {
             ) : (
               products.map((product) => (
                 <Grid item xs={12} md={6} lg={4} key={product._id}>
-                  <Card sx={{ background: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)', border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : 'none' }}>
+                  <Card sx={{ background: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)', border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : 'none', height: 360, display: 'flex', flexDirection: 'column' }}>
                     {product.images && product.images.length > 0 && (
                       <CardMedia
                         component="img"
-                        height="160"
+                        height="180"
                         image={(function(){
                           const first = product.images[0];
                           if (!first) return undefined;
@@ -515,9 +527,10 @@ const VendorDashboard = () => {
                           return `${backendOrigin}/${String(first).replace(/^\/+/,'')}`;
                         })()}
                         alt={product.name}
+                        sx={{ width: '100%', height: 180, objectFit: 'cover' }}
                       />
                     )}
-                    <CardContent>
+                    <CardContent sx={{ flexGrow: 1 }}>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} mb={1}>
                         <Typography variant="h6" sx={{ color: isDarkMode ? 'white' : 'inherit', mr: 1, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                           {product.name}

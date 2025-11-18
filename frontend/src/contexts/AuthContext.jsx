@@ -120,6 +120,15 @@ export const AuthProvider = ({ children }) => {
         }
       });
 
+      // If backend returned token directly (admin/vendor bypass OTP)
+      if (response.data?.token && response.data?.user) {
+        const { token, user: userData } = response.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+        return { success: true };
+      }
+
       // Server enforces OTP after valid password
       if (response.data?.otpRequired) {
         const devFallback = !!response.data?.devFallback;

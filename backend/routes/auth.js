@@ -135,6 +135,27 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    // For admin and vendor roles, bypass OTP and issue token directly
+    if (user.role === 'admin' || user.role === 'vendor') {
+      user.lastLogin = new Date();
+      await user.save();
+
+      const token = generateToken(user._id);
+      return res.json({
+        message: 'Login successful',
+        token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          college: user.college,
+          vendorDetails: user.vendorDetails,
+          profileImage: user.profileImage
+        }
+      });
+    }
+
     // After correct password, send OTP and require verification before issuing token
     if (!canSendAgain(user.otpLastSentAt)) {
       const cooldownMs = 60 * 1000;

@@ -8,13 +8,35 @@ import { useTheme } from '../contexts/ThemeContext';
 
 // Helper to normalize image urls
 const getImageUrl = (imagePath) => {
-  if (!imagePath) return 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=200&fit=crop&crop=center';
+  if (!imagePath) return '';
   if (imagePath.startsWith('http')) return imagePath;
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
   const backendOrigin = API_BASE.startsWith('http')
     ? new URL(API_BASE).origin
     : 'http://127.0.0.1:3001';
   return `${backendOrigin}/${String(imagePath).replace(/^\/+/, '')}`;
+};
+
+// Fallback: pick a shop photo based on vendor name/business type
+const getNameBasedPhoto = (title, businessType) => {
+  const name = String(title || '').toLowerCase();
+  const type = String(businessType || '').toLowerCase();
+  const keywordMatch = (kw) => name.includes(kw) || type.includes(kw);
+  let query = 'restaurant,food';
+  if (keywordMatch('pizza')) query = 'pizza,restaurant';
+  else if (keywordMatch('burger')) query = 'burger,restaurant';
+  else if (keywordMatch('cafe') || keywordMatch('coffee')) query = 'cafe,coffee,shop';
+  else if (keywordMatch('chai') || keywordMatch('tea')) query = 'tea,chai,stall';
+  else if (keywordMatch('bakery')) query = 'bakery,shop';
+  else if (keywordMatch('juice')) query = 'juice,bar,shop';
+  else if (keywordMatch('sandwich')) query = 'sandwich,shop';
+  else if (keywordMatch('chinese')) query = 'chinese,restaurant';
+  else if (keywordMatch('south indian') || keywordMatch('dosa')) query = 'south%20indian,restaurant';
+  else if (keywordMatch('north indian') || keywordMatch('biryani')) query = 'north%20indian,restaurant';
+  const unsplash = `https://source.unsplash.com/featured/?${query}`;
+  const seed = encodeURIComponent(name || type || 'vendor');
+  const picsum = `https://picsum.photos/seed/${seed}/400/200`;
+  return unsplash || picsum;
 };
 
 const VendorStore = () => {
@@ -144,7 +166,7 @@ const VendorStore = () => {
               }}
             >
               <Avatar
-                src={getImageUrl(vendor.profileImage)}
+                src={getImageUrl(vendor.profileImage) || getNameBasedPhoto(vendor.vendorDetails?.businessName || vendor.name, vendor.vendorDetails?.businessType)}
                 alt={vendor.vendorDetails?.businessName || vendor.name}
                 sx={{ width: 72, height: 72 }}
               />
@@ -196,18 +218,28 @@ const VendorStore = () => {
                 sx={{
                   borderRadius: 2,
                   overflow: 'hidden',
-                  height: 300,
+                  height: 360,
                   display: 'flex',
                   flexDirection: 'column'
                 }}
               >
-                <CardMedia
-                  component="img"
-                  height="140"
-                  image={getImageUrl((p.images && p.images[0]) || '')}
-                  alt={p.name}
-                  sx={{ objectFit: 'cover' }}
-                />
+                {(() => {
+                  const firstImage = (p.images && p.images[0]) || '';
+                  const fallbackByDish = getNameBasedPhoto(p?.name, p?.category);
+                  const vendorPhoto = getImageUrl(vendor?.profileImage);
+                  const productImage = firstImage
+                    ? getImageUrl(firstImage)
+                    : (fallbackByDish || vendorPhoto);
+                  return (
+                    <CardMedia
+                      component="img"
+                      height="180"
+                      image={productImage}
+                      alt={p.name}
+                      sx={{ objectFit: 'cover', width: '100%', backgroundColor: 'rgba(0,0,0,0.04)' }}
+                    />
+                  );
+                })()}
                 <CardContent sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, pb: 2 }}>
                   <Box display="flex" justifyContent="space-between" alignItems="start" mb={1} gap={1}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</Typography>

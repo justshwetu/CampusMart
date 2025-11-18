@@ -58,7 +58,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('/marketplace/pending', {
+  const response = await axios.get('marketplace/pending', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setPendingItems(response.data.items || []);
@@ -75,7 +75,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await axios.get('vendors/pending', {
+  const res = await axios.get('vendors/pending', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setPendingVendors(res.data.vendors || []);
@@ -91,7 +91,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.put(`/marketplace/${itemId}/approve`, {}, {
+  await axios.put(`marketplace/${itemId}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSuccess('Item approved successfully!');
@@ -108,7 +108,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.put(`/vendors/${vendorId}/approve`, {}, {
+  await axios.put(`vendors/${vendorId}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSuccess('Vendor approved successfully!');
@@ -129,7 +129,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.put(`/marketplace/${selectedItem._id}/reject`, {
+  await axios.put(`marketplace/${selectedItem._id}/reject`, {
         reason: rejectionReason
       }, {
         headers: { Authorization: `Bearer ${token}` }

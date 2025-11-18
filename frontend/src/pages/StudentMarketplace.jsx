@@ -290,7 +290,7 @@ const StudentMarketplace = () => {
       
       if (editingItem) {
         // Update existing item
-        await axios.put(`/marketplace/${editingItem._id}`, formDataToSend, {
+  await axios.put(`marketplace/${editingItem._id}`, formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
             Authorization: `Bearer ${token}`
@@ -299,7 +299,7 @@ const StudentMarketplace = () => {
         setSuccess('Item updated successfully!');
       } else {
         // Create new item
-        await axios.post('/marketplace', formDataToSend, {
+  await axios.post('marketplace', formDataToSend, {
           headers: {
             'Content-Type': 'multipart/form-data',
             Authorization: `Bearer ${token}`
@@ -375,7 +375,7 @@ const StudentMarketplace = () => {
     if (window.confirm('Are you sure you want to delete this item?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`/marketplace/${itemId}`, {
+  await axios.delete(`marketplace/${itemId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setSuccess('Item deleted successfully!');
