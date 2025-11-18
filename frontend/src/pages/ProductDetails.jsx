@@ -45,6 +45,17 @@ import { useCart } from '../contexts/CartContext';
 import axios from 'axios';
 
 const ProductDetails = () => {
+  // Helper to normalize backend image paths to absolute URLs
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return '/placeholder-food.jpg';
+    if (String(imagePath).startsWith('http')) return imagePath;
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+    const backendOrigin = API_BASE.startsWith('http')
+      ? new URL(API_BASE).origin
+      : 'http://127.0.0.1:3001';
+    return `${backendOrigin}/${String(imagePath).replace(/^\/+/, '')}`;
+  };
+
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -59,6 +70,7 @@ const ProductDetails = () => {
   const [reviews, setReviews] = useState([]);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   useEffect(() => {
     fetchProduct();
@@ -70,6 +82,7 @@ const ProductDetails = () => {
       setLoading(true);
       const response = await axios.get(`products/${id}`);
       setProduct(response.data);
+      setActiveImageIndex(0);
       
       // Check if product is in user's favorites
       if (user) {
@@ -217,7 +230,7 @@ const ProductDetails = () => {
             <CardMedia
               component="img"
               height="400"
-              image={product.images?.[0] || '/placeholder-food.jpg'}
+              image={getImageUrl(product.images?.[activeImageIndex] || product.images?.[0])}
               alt={product.name}
               sx={{ objectFit: 'cover' }}
             />
@@ -226,13 +239,23 @@ const ProductDetails = () => {
           {/* Additional Images */}
           {product.images && product.images.length > 1 && (
             <Box sx={{ mt: 2, display: 'flex', gap: 1, overflowX: 'auto' }}>
-              {product.images.slice(1).map((image, index) => (
-                <Card key={index} sx={{ minWidth: 80, height: 80 }}>
+              {product.images.map((image, index) => (
+                <Card
+                  key={index}
+                  onClick={() => setActiveImageIndex(index)}
+                  sx={{
+                    minWidth: 80,
+                    height: 80,
+                    cursor: 'pointer',
+                    outline: index === activeImageIndex ? '2px solid #1976d2' : 'none',
+                    outlineOffset: '-2px'
+                  }}
+                >
                   <CardMedia
                     component="img"
                     height="80"
-                    image={image}
-                    alt={`${product.name} ${index + 2}`}
+                    image={getImageUrl(image)}
+                    alt={`${product.name} ${index + 1}`}
                     sx={{ objectFit: 'cover' }}
                   />
                 </Card>

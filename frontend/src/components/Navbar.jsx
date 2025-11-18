@@ -84,6 +84,16 @@ const Navbar = () => {
       });
     }
 
+    // Show Vendor Application when vendor is not yet approved
+    if (user?.role === 'vendor' && !user?.vendorDetails?.isApproved) {
+      items.push({
+        label: 'Vendor Application',
+        path: '/become-vendor',
+        icon: <Store />,
+        roles: ['vendor']
+      });
+    }
+
     if (user?.role === 'student' || user?.role === 'admin') {
       items.push({
         label: 'Marketplace',

@@ -1,18 +1,44 @@
 [
-  {
-    "q": "What is Campus Mart?",
-    "a": "Campus Mart is a campus-focused marketplace connecting students and vendors for food, products, and services."
-  },
-  {
-    "q": "How do I become a vendor?",
-    "a": "Go to the Become Vendor page in your profile or vendor section, submit your business details, and an admin will review your request."
-  },
-  {
-    "q": "Where can I track my orders?",
-    "a": "Open the Orders page from the navbar after logging in to view order status and history."
-  },
-  {
-    "q": "I can’t log in, what should I do?",
-    "a": "Use the Sign in with OTP option on the login page to receive a one-time code by email. If issues persist, contact support."
-  }
+  {"q": "What is Campus Mart?", "a": "Campus Mart is a campus-focused marketplace connecting students and vendors for food, products, and services."},
+
+  {"q": "How do I create an account?", "a": "Click Register, enter your details, and verify via email OTP if prompted."},
+  {"q": "I can’t log in, what should I do?", "a": "Use the Sign in with OTP option on the login page to receive a one-time code by email. If issues persist, contact support."},
+  {"q": "How do I update my profile?", "a": "Open Profile from the navbar, edit your name, bio, and photo, then save."},
+  {"q": "How do I delete my account?", "a": "Please contact support to request account deletion. We’ll guide you through confirmation and data removal."},
+
+  {"q": "How do I place an order?", "a": "Go to Marketplace or a Vendor page, add items to cart, then proceed to checkout from the Cart page."},
+  {"q": "Where can I track my orders?", "a": "Open the Orders page from the navbar after logging in to view order status and history."},
+  {"q": "Can I cancel an order?", "a": "Orders can be canceled before the vendor starts preparing. Go to Orders, select the order, and choose Cancel if available."},
+  {"q": "How do refunds work?", "a": "If an order is canceled or fails, refunds are initiated immediately. Depending on your payment method, funds may take 3–7 business days to reflect."},
+  {"q": "My delivery is late", "a": "Open Orders to check live status. If it’s significantly delayed, contact the vendor from the order details or reach support for help."},
+  {"q": "I haven’t received my order", "a": "Check Orders for status and vendor contact. If marked delivered but not received, contact support and we’ll investigate with the vendor."},
+
+  {"q": "What payment methods do you accept?", "a": "We support common digital payments. If a method fails, try another option or contact your bank."},
+  {"q": "My payment failed but was charged", "a": "Occasionally banks place a temporary hold. It usually auto-reverses within 3–7 business days. Contact support with the transaction ID if it does not."},
+
+  {"q": "How do I become a vendor?", "a": "Go to the Become Vendor page in your profile or vendor section, submit your business details, and an admin will review your request."},
+  {"q": "How long does vendor approval take?", "a": "Approvals typically take 1–3 business days after you submit your application."},
+  {"q": "How do I edit my shop photo?", "a": "Open Vendor Dashboard and click Change Photo in the shop header to upload a new image."},
+  {"q": "How do I edit my vendor bio?", "a": "Open Vendor Dashboard and edit the Bio field in your shop header. Save to update immediately."},
+  {"q": "How do I update business details (name, type, location)?", "a": "From Vendor Dashboard, update your business name, type, and location in vendor settings. These sync to your public shop."},
+  {"q": "How do I add or manage products?", "a": "From Vendor Dashboard, go to Products to add items, set price, images, and availability."},
+  {"q": "What are vendor fees or commissions?", "a": "Platform fees may apply per transaction. Check your Vendor Dashboard or your agreement for the current rate."},
+
+  {"q": "How do I browse vendors?", "a": "Open Vendors to see shops. Click any vendor to view their products and details."},
+  {"q": "How do I use filters in marketplace?", "a": "Use search and category filters on Marketplace to narrow down items by type, price, or vendor."},
+  {"q": "Do you have ratings and reviews?", "a": "Ratings and reviews may be shown on vendor pages when available."},
+  {"q": "Can I pick up instead of delivery?", "a": "Pickup availability depends on the vendor. Check the vendor’s page or product details for pickup options."},
+
+  {"q": "How do I contact a vendor?", "a": "Open the vendor’s store page. If messaging is available, you’ll see a Contact or Message button; otherwise, use order notes and support."},
+  {"q": "What are vendor operating hours?", "a": "Hours vary by vendor. Check the vendor’s store page for latest timings if provided."},
+
+  {"q": "I see wrong information on a vendor page", "a": "Please report it via support with the vendor name, and we’ll notify the vendor to correct it."},
+  {"q": "Which campuses or locations are supported?", "a": "We serve selected campuses. Availability and delivery zones appear within Marketplace and vendor pages based on your profile."},
+
+  {"q": "What is your return or cancellation policy?", "a": "Food and perishable items generally cannot be returned. Orders can be canceled before preparation starts. For other items, see the item’s return policy if provided."},
+  {"q": "What items are prohibited?", "a": "Vendors must comply with campus and legal policies. Hazardous or restricted items are not allowed."},
+  {"q": "How is my data used?", "a": "We only use your data to operate the service and improve your experience. See the privacy policy for details."},
+
+  {"q": "The app is slow or not loading", "a": "Try refreshing, logging out and back in, or clearing browser cache. If the issue persists, contact support with a screenshot."},
+  {"q": "How do I reach support?", "a": "Use the chat widget at the bottom right or email support. Provide your order ID for faster help."}
 ]

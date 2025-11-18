@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Container, Box, Typography, TextField, Grid, Card, CardContent, Button, Alert } from '@mui/material';
 import { Store } from '@mui/icons-material';
 import axios from 'axios';
-import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 
 const BecomeVendor = () => {
@@ -47,7 +46,6 @@ const BecomeVendor = () => {
 
   return (
     <>
-      <Navbar />
       <Container maxWidth="md" sx={{ py: 4 }}>
         <Box textAlign="center" mb={3}>
           <Store color="primary" sx={{ fontSize: 40, mb: 1 }} />

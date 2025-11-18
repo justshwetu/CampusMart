@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, Paper, IconButton, TextField, Typography, Divider, Button } from '@mui/material';
+import { Box, Paper, IconButton, TextField, Typography, Divider, Button, Chip, Stack } from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
@@ -22,6 +22,16 @@ const SupportChatWidget = () => {
   ]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [suggestions] = useState([
+    'Track my order',
+    'Cancel an order',
+    'Payment issue',
+    'Become a vendor',
+    'Edit my shop photo',
+    'Update vendor bio',
+    'Browse vendors',
+    'Account help'
+  ]);
   const listRef = useRef(null);
 
   useEffect(() => {
@@ -30,11 +40,12 @@ const SupportChatWidget = () => {
     }
   }, [messages, open]);
 
-  const send = async () => {
-    if (!input.trim() || sending) return;
-    const userMsg = { role: 'user', content: input.trim() };
+  const send = async (overrideText) => {
+    const text = (overrideText ?? input).trim();
+    if (!text || sending) return;
+    const userMsg = { role: 'user', content: text };
     setMessages((m) => [...m, userMsg]);
-    setInput('');
+    if (!overrideText) setInput('');
     setSending(true);
     try {
       // Use a dedicated axios instance with the same baseURL strategy as AuthContext
@@ -73,6 +84,11 @@ const SupportChatWidget = () => {
           </Box>
           <Divider />
           <Box ref={listRef} sx={{ flex: 1, overflowY: 'auto', p: 2, backgroundColor: '#fafafa' }}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
+              {suggestions.map((s, i) => (
+                <Chip key={i} label={s} size="small" onClick={() => send(s)} sx={{ mb: 1 }} />
+              ))}
+            </Stack>
             {messages.map((m, i) => (
               <Box key={i} display="flex" justifyContent={m.role === 'user' ? 'flex-end' : 'flex-start'}>
                 <Box sx={m.role === 'user' ? bubble('#e8f5e9', '#1b5e20') : bubble('white', '#333')}>
@@ -80,6 +96,13 @@ const SupportChatWidget = () => {
                 </Box>
               </Box>
             ))}
+            {sending && (
+              <Box display="flex" justifyContent="flex-start">
+                <Box sx={bubble('white', '#666')}>
+                  <Typography variant="body2">Typing…</Typography>
+                </Box>
+              </Box>
+            )}
           </Box>
           <Divider />
           <Box sx={{ p: 1.5, display: 'flex', gap: 1 }}>

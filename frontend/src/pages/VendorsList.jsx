@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Container, Box, Typography, TextField, Grid, Card, CardContent, Button, Alert } from '@mui/material';
+import { Container, Box, Typography, TextField, Grid, Card, CardContent, Button, Alert, CardMedia, Chip, Stack } from '@mui/material';
+import { useTheme } from '../contexts/ThemeContext';
 import { Store } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -9,9 +10,21 @@ const VendorsList = () => {
   const [vendors, setVendors] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const { isDarkMode } = useTheme();
   const [error, setError] = useState('');
 
   const navigate = useNavigate();
+
+  // Helper to normalize backend file paths to full URLs
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return '';
+    if (String(imagePath).startsWith('http')) return imagePath;
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+    const backendOrigin = API_BASE.startsWith('http')
+      ? new URL(API_BASE).origin
+      : 'http://127.0.0.1:3001';
+    return `${backendOrigin}/${String(imagePath).replace(/^\/+/, '')}`;
+  };
 
   const fetchVendors = useCallback(async () => {
     try {
@@ -30,8 +43,39 @@ const VendorsList = () => {
   useEffect(() => { fetchVendors(); }, [fetchVendors]);
 
   return (
-    <>
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: isDarkMode
+          ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
+          : 'linear-gradient(135deg, #CD1C18 0%, #FFA896 100%)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      {/* Animated background overlay for consistency */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: '-50%',
+            left: '-50%',
+            width: '200%',
+            height: '200%',
+            background: `
+              radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.05) 0%, transparent 50%)
+            `,
+            animation: 'float 20s ease-in-out infinite'
+          }
+        }}
+      />
+      <Container maxWidth="lg" sx={{ py: 4, position: 'relative' }}>
         {error && (
           <Box mb={2}>
             <Alert severity="error">{error}</Alert>
@@ -55,19 +99,85 @@ const VendorsList = () => {
         </Box>
 
         <Grid container spacing={3}>
-          {vendors.map(v => (
-            <Grid item xs={12} md={4} key={v._id}>
-              <Card sx={{ cursor: 'pointer' }} onClick={() => navigate(`/vendor/${v._id}`)}>
-                <CardContent>
-                  <Typography variant="h6">{v.vendorDetails?.businessName || v.name}</Typography>
-                  <Typography variant="body2" color="text.secondary">{v.vendorDetails?.location}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
+          {vendors.map((v) => {
+            const title = v.vendorDetails?.businessName || v.name;
+            const location = v.vendorDetails?.location;
+            const businessType = v.vendorDetails?.businessType;
+            const banner = getImageUrl(v.profileImage);
+            return (
+              <Grid item xs={12} sm={6} md={4} key={v._id}>
+                <Card
+                  onClick={() => navigate(`/vendor/${v._id}`)}
+                  sx={{
+                    cursor: 'pointer',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    boxShadow: isDarkMode
+                      ? '0 12px 28px rgba(0,0,0,0.35)'
+                      : '0 12px 28px rgba(0,0,0,0.15)',
+                    transition: 'transform 0.25s ease, box-shadow 0.25s ease',
+                    '&:hover': {
+                      transform: 'translateY(-6px)',
+                      boxShadow: isDarkMode
+                        ? '0 18px 40px rgba(0,0,0,0.45)'
+                        : '0 18px 40px rgba(0,0,0,0.25)'
+                    }
+                  }}
+                >
+                  <Box sx={{ position: 'relative' }}>
+                    <CardMedia
+                      component="img"
+                      image={banner || (isDarkMode ? undefined : undefined)}
+                      alt={title}
+                      sx={{
+                        height: { xs: 200, md: 220 },
+                        width: '100%',
+                        objectFit: 'cover',
+                        background: !banner
+                          ? (isDarkMode
+                              ? 'linear-gradient(135deg,#1f1f1f,#2f2f2f)'
+                              : 'linear-gradient(135deg,#FFE4E1,#FFD1C9)')
+                          : undefined
+                      }}
+                    />
+                    {/* Gradient overlay */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.0) 40%, rgba(0,0,0,0.55) 100%)'
+                      }}
+                    />
+                    <Box sx={{ position: 'absolute', left: 16, right: 16, bottom: 16 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{ color: 'white', fontWeight: 800, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                      >
+                        {title}
+                      </Typography>
+                      <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                        {businessType && (
+                          <Chip size="small" label={businessType} sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', backdropFilter: 'blur(6px)' }} />
+                        )}
+                        {location && (
+                          <Chip size="small" label={location} sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', backdropFilter: 'blur(6px)' }} />
+                        )}
+                      </Stack>
+                    </Box>
+                  </Box>
+                  <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Visit shop for menu and timings
+                    </Typography>
+                    <Button size="small" variant="contained">View Shop</Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
         </Grid>
       </Container>
-    </>
+    </Box>
   );
 };
 

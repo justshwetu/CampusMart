@@ -64,7 +64,7 @@ const Profile = () => {
         phone: user.phone || '',
         address: user.address || '',
         bio: user.bio || '',
-        profilePicture: user.profilePicture || ''
+        profilePicture: user.profileImage || user.profilePicture || ''
       });
 
       if (user.role === 'vendor' && user.vendorDetails) {
@@ -175,7 +175,14 @@ const Profile = () => {
                   bgcolor: 'primary.main',
                   fontSize: '3rem'
                 }}
-                src={profileData.profilePicture}
+                src={(function(){
+                  const img = profileData.profilePicture;
+                  if (!img) return undefined;
+                  if (String(img).startsWith('http')) return img;
+                  const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+                  const backendOrigin = API_BASE.startsWith('http') ? new URL(API_BASE).origin : 'http://127.0.0.1:3001';
+                  return `${backendOrigin}/${String(img).replace(/^\/+/, '')}`;
+                })()}
               >
                 {profileData.name?.charAt(0)?.toUpperCase()}
               </Avatar>
@@ -190,10 +197,45 @@ const Profile = () => {
                     '&:hover': { bgcolor: 'primary.dark' }
                   }}
                   size="small"
+                  onClick={() => document.getElementById('profileImageInput')?.click()}
                 >
                   <PhotoCamera />
                 </IconButton>
               )}
+              <input
+                id="profileImageInput"
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    setLoading(true);
+                    setMessage({ type: '', text: '' });
+                    const form = new FormData();
+                    form.append('profileImage', file);
+                    const res = await axios.put('auth/profile', form, {
+                      headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    const updated = res.data?.user;
+                    if (updated) {
+                      updateUser(updated);
+                      setProfileData(prev => ({
+                        ...prev,
+                        profilePicture: updated.profileImage || ''
+                      }));
+                      setMessage({ type: 'success', text: 'Profile photo updated!' });
+                    }
+                  } catch (err) {
+                    setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to upload photo' });
+                  } finally {
+                    setLoading(false);
+                    // reset input value to allow re-uploading the same file if needed
+                    if (e.target) e.target.value = '';
+                  }
+                }}
+              />
             </Box>
             
             <Typography variant="h5" gutterBottom>

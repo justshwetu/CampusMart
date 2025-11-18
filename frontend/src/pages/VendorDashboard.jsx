@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Container, Typography, Box, Grid, Card, CardContent, TextField, Button, Alert, Chip, Divider, Tabs, Tab, Badge, CardMedia 
+  Container, Typography, Box, Grid, Card, CardContent, TextField, Button, Alert, Chip, Divider, Tabs, Tab, Badge, CardMedia, Stack, Avatar
 } from '@mui/material';
 import { useTheme } from '../contexts/ThemeContext';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 const VendorDashboard = () => {
   const { isDarkMode } = useTheme();
+  const { user, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
@@ -19,10 +21,30 @@ const VendorDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [updatingId, setUpdatingId] = useState('');
+  const [shopUploading, setShopUploading] = useState(false);
+  const [bio, setBio] = useState(user?.bio || '');
+  const [bioSaving, setBioSaving] = useState(false);
+
+  // Helper to normalize image urls
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return '';
+    if (String(imagePath).startsWith('http')) return imagePath;
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+    const backendOrigin = API_BASE.startsWith('http')
+      ? new URL(API_BASE).origin
+      : 'http://127.0.0.1:3001';
+    return `${backendOrigin}/${String(imagePath).replace(/^\/+/, '')}`;
+  };
 
   useEffect(() => {
     fetchMyProducts();
   }, []);
+
+  // Keep bio state in sync with user changes
+  useEffect(() => {
+    setBio(user?.bio || '');
+  }, [user?._id, user?.bio]);
 
   const fetchMyProducts = async () => {
     try {
@@ -37,6 +59,27 @@ const VendorDashboard = () => {
       setError(e.response?.data?.message || 'Failed to load your products');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleAvailability = async (product) => {
+    try {
+      setUpdatingId(product._id);
+      setError('');
+      const token = localStorage.getItem('token');
+      // Backend expects 'true'/'false' strings for booleans
+      const next = product.isAvailable ? 'false' : 'true';
+      const res = await axios.put(`/products/${product._id}`, { isAvailable: next }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuccess(`Marked ${res.data?.product?.isAvailable ? 'In Stock' : 'Out of Stock'}`);
+      // Refresh list
+      await fetchMyProducts();
+    } catch (e) {
+      console.error('Toggle availability error:', e);
+      setError(e.response?.data?.message || 'Failed to update availability');
+    } finally {
+      setUpdatingId('');
     }
   };
 
@@ -97,6 +140,56 @@ const VendorDashboard = () => {
       setError(err.response?.data?.message || 'Failed to create product');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShopPhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setSuccess('');
+    try {
+      setShopUploading(true);
+      const form = new FormData();
+      form.append('profileImage', file);
+      const token = localStorage.getItem('token');
+      const res = await axios.put('/auth/profile', form, {
+        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
+      });
+      const updated = res.data?.user;
+      if (updated) {
+        updateUser(updated);
+      }
+      setSuccess('Shop photo updated successfully');
+    } catch (err) {
+      console.error('Update shop photo error:', err);
+      setError(err.response?.data?.message || 'Failed to update shop photo');
+    } finally {
+      setShopUploading(false);
+      // Clear the input value so the same file can be reselected if needed
+      e.target.value = '';
+    }
+  };
+
+  const handleBioSave = async () => {
+    try {
+      setBioSaving(true);
+      setError('');
+      setSuccess('');
+      const token = localStorage.getItem('token');
+      const res = await axios.put('/auth/profile', { bio }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const updated = res.data?.user;
+      if (updated) {
+        updateUser(updated);
+      }
+      setSuccess('Shop bio updated successfully');
+    } catch (err) {
+      console.error('Update bio error:', err);
+      setError(err.response?.data?.message || 'Failed to update bio');
+    } finally {
+      setBioSaving(false);
     }
   };
 
@@ -213,6 +306,77 @@ const VendorDashboard = () => {
             Manage your food items, orders, and business analytics.
           </Typography>
         </Box>
+
+        {/* Shop Overview Hero */}
+        <Card sx={{ mb: 3, p: { xs: 1, md: 2 }, background: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.98)', backdropFilter: 'blur(10px)', border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.06)', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+          <Box sx={{ position: 'relative', height: { xs: 180, md: 260 }, borderRadius: 2, overflow: 'hidden', mb: 2 }}>
+            <Box
+              sx={{
+                position: 'absolute', inset: 0,
+                backgroundImage: user?.profileImage ? `url(${getImageUrl(user?.profileImage)})` : undefined,
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                filter: user?.profileImage ? 'brightness(0.8)' : 'none',
+                background: !user?.profileImage ? (isDarkMode ? 'linear-gradient(135deg,#1f1f1f,#333)' : 'linear-gradient(135deg,#FFE4E1,#FFD1C9)') : undefined
+              }}
+            />
+            <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.6) 100%)' }} />
+            <Box sx={{ position: 'absolute', inset: 0, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'flex-start', md: 'flex-end' }, justifyContent: 'space-between' }}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Avatar
+                  src={getImageUrl(user?.profileImage)}
+                  alt={user?.vendorDetails?.businessName || user?.name}
+                  sx={{ width: { xs: 84, md: 110 }, height: { xs: 84, md: 110 }, border: '3px solid rgba(255,255,255,0.9)', boxShadow: '0 8px 16px rgba(0,0,0,0.35)' }}
+                />
+                <Box>
+                  <Typography variant="h4" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.1 }}>
+                    {user?.vendorDetails?.businessName || user?.name || 'My Shop'}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                    {user?.vendorDetails?.businessType && (
+                      <Chip size="small" color="info" label={user.vendorDetails.businessType} sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', backdropFilter: 'blur(6px)' }} />
+                    )}
+                    {user?.vendorDetails?.location && (
+                      <Chip size="small" color="success" label={user.vendorDetails.location} sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', backdropFilter: 'blur(6px)' }} />
+                    )}
+                    <Chip size="small" label="Vendor" sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: 'white', backdropFilter: 'blur(6px)' }} />
+                  </Stack>
+                </Box>
+              </Stack>
+              <Button variant="contained" component="label" disabled={shopUploading} sx={{ alignSelf: { xs: 'flex-end', md: 'center' } }}>
+                {shopUploading ? 'Uploading…' : 'Change Photo'}
+                <input type="file" hidden accept="image/*" onChange={handleShopPhotoChange} />
+              </Button>
+            </Box>
+          </Box>
+          <Grid container spacing={2} alignItems="flex-start">
+            <Grid item xs={12} md={8}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, color: isDarkMode ? 'rgba(255,255,255,0.85)' : 'text.secondary' }}>
+                Shop Bio
+              </Typography>
+              <TextField
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell customers what makes your shop special—signature dishes, timings, story, etc."
+                fullWidth
+                multiline
+                minRows={3}
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Typography variant="body2" sx={{ mb: 1, color: isDarkMode ? 'rgba(255,255,255,0.75)' : 'text.secondary' }}>
+                Your bio appears on your public shop page and helps customers connect with your brand.
+              </Typography>
+              <Stack direction={{ xs: 'row', md: 'row' }} spacing={1}>
+                <Button variant="contained" onClick={handleBioSave} disabled={bioSaving}>
+                  {bioSaving ? 'Saving…' : 'Save Bio'}
+                </Button>
+                <Button variant="outlined" onClick={() => setBio(user?.bio || '')} disabled={bioSaving}>
+                  Reset
+                </Button>
+              </Stack>
+            </Grid>
+          </Grid>
+        </Card>
 
         <Box sx={{ borderBottom: 1, borderColor: 'rgba(255,255,255,0.2)', mb: 3 }}>
           <Tabs 
@@ -354,15 +518,34 @@ const VendorDashboard = () => {
                       />
                     )}
                     <CardContent>
-                      <Typography variant="h6" sx={{ color: isDarkMode ? 'white' : 'inherit' }}>
-                        {product.name}
-                      </Typography>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} mb={1}>
+                        <Typography variant="h6" sx={{ color: isDarkMode ? 'white' : 'inherit', mr: 1, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {product.name}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          color={product.isAvailable ? 'success' : 'error'}
+                          label={product.isAvailable ? 'In Stock' : 'Out of Stock'}
+                        />
+                      </Stack>
                       <Typography variant="body2" sx={{ color: isDarkMode ? 'rgba(255,255,255,0.7)' : 'text.secondary' }}>
                         {product.category} • ₹{product.price}
                       </Typography>
-                      <Typography variant="body2" sx={{ mt: 1 }}>
+                      <Typography variant="body2" sx={{ mt: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         {product.description}
                       </Typography>
+                      <Box mt={2} display="flex" gap={1}>
+                        <Button
+                          size="small"
+                          variant={product.isAvailable ? 'outlined' : 'contained'}
+                          color={product.isAvailable ? 'warning' : 'success'}
+                          onClick={() => toggleAvailability(product)}
+                          disabled={updatingId === product._id || loading}
+                        >
+                          {updatingId === product._id ? 'Updating…' : product.isAvailable ? 'Mark Out of Stock' : 'Mark In Stock'}
+                        </Button>
+                        <Button size="small" variant="text" href={`/product/${product._id}`}>Preview</Button>
+                      </Box>
                     </CardContent>
                   </Card>
                 </Grid>

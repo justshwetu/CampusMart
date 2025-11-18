@@ -19,6 +19,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import VendorsList from './pages/VendorsList';
 import VendorStore from './pages/VendorStore';
 import SupportChatWidget from './components/SupportChatWidget';
+import BecomeVendor from './pages/BecomeVendor';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole }) => {
@@ -103,6 +104,15 @@ function App() {
                     <ProtectedRoute requiredRole="vendor">
                       <Navbar />
                       <VendorDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/become-vendor"
+                  element={
+                    <ProtectedRoute>
+                      <Navbar />
+                      <BecomeVendor />
                     </ProtectedRoute>
                   }
                 />

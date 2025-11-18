@@ -172,14 +172,24 @@ const Cart = () => {
 
       const orderData = await orderResponse.json();
 
+      // Normalize fields between vendor and marketplace responses
+      const rpOrderId = orderData?.razorpayOrder?.id || orderData?.orderId;
+      const rpAmount = orderData?.razorpayOrder?.amount || orderData?.amount; // amount in paise when present
+      const rpCurrency = orderData?.razorpayOrder?.currency || orderData?.currency || 'INR';
+      const localOrderId = orderData?.order?.id || orderData?.order?._id; // DB order id for verification
+
+      if (!orderData?.key || !rpOrderId) {
+        throw new Error('Invalid payment initialization. Please try again.');
+      }
+
       // Configure Razorpay options
       const options = {
         key: orderData.key,
-        amount: orderData.amount,
-        currency: orderData.currency,
+        amount: rpAmount,
+        currency: rpCurrency,
         name: 'CampusMart',
         description: types.has('product') ? 'Vendor Product Purchase' : 'Marketplace Purchase',
-        order_id: orderData.orderId || orderData.razorpayOrder?.id,
+        order_id: rpOrderId,
         handler: async (response) => {
           try {
             // Verify payment on backend
@@ -194,7 +204,7 @@ const Cart = () => {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                orderId: orderData?.order?.id
+                orderId: localOrderId
               })
             });
 
