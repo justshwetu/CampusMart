@@ -68,10 +68,7 @@ const connectWithRetry = async (retries = 10, delayMs = 2000) => {
   let attempt = 0;
   while (attempt < retries) {
     try {
-      await mongoose.connect(MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
+      await mongoose.connect(MONGODB_URI);
       console.log('MongoDB connected successfully');
       return true;
     } catch (err) {
@@ -83,10 +80,7 @@ const connectWithRetry = async (retries = 10, delayMs = 2000) => {
         try {
           memoryServer = await MongoMemoryServer.create();
           const memUri = memoryServer.getUri('campusmart');
-          await mongoose.connect(memUri, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-          });
+          await mongoose.connect(memUri);
           console.log('✅ Connected to in-memory MongoDB instance');
           console.log('ℹ️ Note: Data will reset on server restart. Configure MONGODB_URI for persistent storage.');
           return true;

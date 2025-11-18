@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CustomThemeProvider } from './contexts/ThemeContext';
 import { CartProvider } from './contexts/CartContext';
 import Login from './pages/Login';
+import Otp from './pages/Otp';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import VendorDashboard from './pages/VendorDashboard';
@@ -76,6 +77,14 @@ function App() {
                   element={
                     <PublicRoute>
                       <Login />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/otp"
+                  element={
+                    <PublicRoute>
+                      <Otp />
                     </PublicRoute>
                   }
                 />

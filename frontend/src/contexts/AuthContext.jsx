@@ -14,7 +14,8 @@ export const useAuth = () => {
 
 // Configure axios defaults
 // Prefer explicit API base via env; fallback to proxy path '/api' for dev
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Ensure trailing slash so route joins like 'auth/login' become '/api/auth/login'
+axios.defaults.baseURL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/?$/, '/');
 console.log('API Base URL set to:', axios.defaults.baseURL);
 
 // Add token to requests if available
@@ -36,10 +37,21 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     // Only redirect on 401 if it's not a login attempt
-    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+    if (error.response?.status === 401) {
+      const base = String(error.config?.baseURL || '');
+      const url = String(error.config?.url || '');
+      const full = `${base}${url}`;
+      const isAuthLogin = /\/?auth\/login$/.test(url) || /\/?auth\/login$/.test(full);
+      const isAuthMe = /\/?auth\/me$/.test(url) || /\/?auth\/me$/.test(full);
+      const isVerifyOtp = /\/?auth\/verify-otp$/.test(url) || /\/?auth\/verify-otp$/.test(full);
+      const isRequestOtp = /\/?auth\/request-otp$/.test(url) || /\/?auth\/request-otp$/.test(full);
+
+      // Do not hard-redirect for public/auth endpoints
+      if (!isAuthLogin && !isAuthMe && !isVerifyOtp && !isRequestOtp) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -97,7 +109,7 @@ export const AuthProvider = ({ children }) => {
       
       console.log('Attempting login with API base URL:', axios.defaults.baseURL);
       
-      // Add timeout and retry logic
+      // Password-first, then OTP: backend validates password and sends OTP
       const response = await axios.post('auth/login', {
         email: email.trim().toLowerCase(),
         password
@@ -108,24 +120,25 @@ export const AuthProvider = ({ children }) => {
         }
       });
 
-      // If server requires OTP (2FA), bubble that up
+      // Server enforces OTP after valid password
       if (response.data?.otpRequired) {
-        return { success: false, otpRequired: true, email: response.data.email || email };
+        const devFallback = !!response.data?.devFallback;
+        const expiresInMinutes = response.data?.expiresInMinutes ?? 10;
+        const otpExpiresAt = response.data?.otpExpiresAt || null;
+        const resendAvailableAt = response.data?.resendAvailableAt || null;
+        return { 
+          success: false, 
+          otpRequired: true, 
+          email: response.data.email || email, 
+          devFallback, 
+          expiresInMinutes,
+          otpExpiresAt,
+          resendAvailableAt
+        };
       }
-
-      const { token, user: userData } = response.data;
-      
-      if (!token || !userData) {
-        throw new Error('Invalid response from server');
-      }
-      
-      // Save to localStorage
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      setUser(userData);
-      console.log('Login successful for user:', userData.email);
-      return { success: true };
+      // Unexpected path: surface message
+      const message = response.data?.message || 'OTP required after password verification';
+      return { success: false, otpRequired: true, email, message };
     } catch (error) {
       console.error('Login error:', error);
       
@@ -165,11 +178,19 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError('');
       const res = await axios.post('auth/request-otp', { email: email.trim().toLowerCase() });
-      return { success: true, message: res.data?.message || 'OTP sent' };
+      return { 
+        success: true, 
+        message: res.data?.message || 'OTP sent',
+        devFallback: !!res.data?.devFallback,
+        expiresInMinutes: res.data?.expiresInMinutes ?? 10,
+        otpExpiresAt: res.data?.otpExpiresAt || null,
+        resendAvailableAt: res.data?.resendAvailableAt || null
+      };
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to send OTP';
+      const resendAvailableAt = error.response?.data?.resendAvailableAt || null;
       setError(message);
-      return { success: false, error: message };
+      return { success: false, error: message, resendAvailableAt };
     } finally {
       setLoading(false);
     }

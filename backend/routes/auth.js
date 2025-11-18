@@ -115,67 +115,74 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required for login' });
     }
 
-    // Check if account is active
+    // Check if user exists and is active
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ message: 'No account found for this email' });
+    }
+
     if (!user.isActive) {
       return res.status(400).json({ message: 'Account is deactivated. Please contact admin.' });
     }
 
-    // Verify password
+    // Verify password first
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // If 2FA enabled, send OTP and require verification before issuing token
-    if (user.twoFactorEnabled) {
-      const now = new Date();
-      if (!canSendAgain(user.otpLastSentAt)) {
-        return res.status(429).json({ message: 'Please wait before requesting another code', otpRequired: true });
-      }
-      const { code, expiresAt } = generateOtp();
-      user.otpCodeHash = await hashOtp(code);
-      user.otpExpiresAt = expiresAt;
-      user.otpLastSentAt = now;
-      await user.save();
-
-      try {
-        await sendOtpEmail(user.email, code);
-      } catch (e) {
-        console.error('Failed to send OTP email:', e?.message || e);
-      }
-
-      return res.json({
-        message: 'Verification code sent to your email',
-        otpRequired: true,
-        email: user.email
+    // After correct password, send OTP and require verification before issuing token
+    if (!canSendAgain(user.otpLastSentAt)) {
+      const cooldownMs = 60 * 1000;
+      const resendAvailableAt = new Date(new Date(user.otpLastSentAt).getTime() + cooldownMs);
+      return res.status(429).json({ 
+        message: 'Please wait before requesting another code', 
+        otpRequired: true, 
+        email: user.email,
+        resendAvailableAt
       });
     }
 
-    // Update last login and issue token when 2FA is not enabled
-    user.lastLogin = new Date();
+    const { code, expiresAt } = generateOtp();
+    user.otpCodeHash = await hashOtp(code);
+    user.otpExpiresAt = expiresAt;
+    user.otpLastSentAt = new Date();
     await user.save();
 
-    const token = generateToken(user._id);
-
-    res.json({
-      message: 'Login successful',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
+    try {
+      const sendRes = await sendOtpEmail(user.email, code);
+      const devFallback = !!(sendRes && sendRes.fallbackLogged);
+      const cooldownMs = 60 * 1000;
+      const resendAvailableAt = new Date(new Date(user.otpLastSentAt).getTime() + cooldownMs);
+      return res.json({
+        message: 'Verification code sent to your email',
+        otpRequired: true,
         email: user.email,
-        role: user.role,
-        college: user.college,
-        vendorDetails: user.vendorDetails,
-        profileImage: user.profileImage
-      }
-    });
+        devFallback,
+        expiresInMinutes: 10,
+        otpExpiresAt: user.otpExpiresAt,
+        resendAvailableAt
+      });
+    } catch (e) {
+      console.error('Failed to send OTP email:', e?.message || e);
+      // Dev fallback: log OTP code for testing when email delivery fails
+      console.log(`DEV Fallback OTP for ${user.email}: ${code}`);
+      const cooldownMs = 60 * 1000;
+      const resendAvailableAt = new Date(new Date(user.otpLastSentAt).getTime() + cooldownMs);
+      return res.json({
+        message: 'Verification code attempted to send',
+        otpRequired: true,
+        email: user.email,
+        devFallback: true,
+        expiresInMinutes: 10,
+        otpExpiresAt: user.otpExpiresAt,
+        resendAvailableAt
+      });
+    }
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error during login' });
@@ -198,7 +205,9 @@ router.post('/request-otp', async (req, res) => {
     }
 
     if (!canSendAgain(user.otpLastSentAt)) {
-      return res.status(429).json({ message: 'Please wait before requesting another code' });
+      const cooldownMs = 60 * 1000;
+      const resendAvailableAt = new Date(new Date(user.otpLastSentAt).getTime() + cooldownMs);
+      return res.status(429).json({ message: 'Please wait before requesting another code', resendAvailableAt });
     }
 
     const { code, expiresAt } = generateOtp();
@@ -208,12 +217,31 @@ router.post('/request-otp', async (req, res) => {
     await user.save();
 
     try {
-      await sendOtpEmail(user.email, code);
+      const sendRes = await sendOtpEmail(user.email, code);
+      const devFallback = !!(sendRes && sendRes.fallbackLogged);
+      const cooldownMs = 60 * 1000;
+      const resendAvailableAt = new Date(new Date(user.otpLastSentAt).getTime() + cooldownMs);
+      return res.json({ 
+        message: 'Verification code sent to your email',
+        devFallback,
+        expiresInMinutes: 10,
+        otpExpiresAt: user.otpExpiresAt,
+        resendAvailableAt
+      });
     } catch (e) {
       console.error('Failed to send OTP email:', e?.message || e);
+      // Dev fallback: log OTP code for testing when email delivery fails
+      console.log(`DEV Fallback OTP for ${user.email}: ${code}`);
+      const cooldownMs = 60 * 1000;
+      const resendAvailableAt = new Date(new Date(user.otpLastSentAt).getTime() + cooldownMs);
+      return res.json({ 
+        message: 'Verification code attempted to send',
+        devFallback: true,
+        expiresInMinutes: 10,
+        otpExpiresAt: user.otpExpiresAt,
+        resendAvailableAt
+      });
     }
-
-    res.json({ message: 'Verification code sent to your email' });
   } catch (error) {
     console.error('Request OTP error:', error);
     res.status(500).json({ message: 'Server error while requesting OTP' });

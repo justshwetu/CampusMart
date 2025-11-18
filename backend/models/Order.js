@@ -139,7 +139,6 @@ orderSchema.pre('save', async function(next) {
 // Index for efficient queries
 orderSchema.index({ customer: 1, createdAt: -1 });
 orderSchema.index({ vendor: 1, createdAt: -1 });
-orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);

@@ -24,23 +24,47 @@ function canSendAgain(lastSentAt, minIntervalMs = 60 * 1000) {
 }
 
 function buildTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
+  const {
+    SMTP_HOST,
+    SMTP_PORT,
+    SMTP_USER,
+    SMTP_PASS,
+    SMTP_SERVICE,
+    SMTP_SECURE,
+    SMTP_ALLOW_INSECURE
+  } = process.env;
+
+  if (!SMTP_USER || !SMTP_PASS) {
     return null; // Use console fallback
   }
+
+  // Prefer well-known service config if provided (e.g., 'gmail', 'outlook')
+  if (SMTP_SERVICE) {
+    const transport = nodemailer.createTransport({
+      service: SMTP_SERVICE,
+      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      secure: SMTP_SECURE === 'true' || SMTP_SERVICE.toLowerCase() === 'gmail',
+      tls: SMTP_ALLOW_INSECURE === 'true' ? { rejectUnauthorized: false } : undefined
+    });
+    return transport;
+  }
+
+  if (!SMTP_HOST || !SMTP_PORT) {
+    return null; // Missing host/port when no service specified
+  }
+
   return nodemailer.createTransport({
     host: SMTP_HOST,
     port: Number(SMTP_PORT),
-    secure: Number(SMTP_PORT) === 465,
-    auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS
-    }
+    secure: SMTP_SECURE === 'true' || Number(SMTP_PORT) === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: SMTP_ALLOW_INSECURE === 'true' ? { rejectUnauthorized: false } : undefined
   });
 }
 
 async function sendOtpEmail(to, code) {
-  const from = process.env.OTP_FROM || 'no-reply@campusmart.local';
+  const fromCandidate = process.env.OTP_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@campusmart.local';
+  const from = /</.test(fromCandidate) ? fromCandidate : `Campus Mart <${fromCandidate}>`;
   const transport = buildTransport();
 
   const subject = 'Your Campus Mart verification code';
@@ -49,6 +73,7 @@ async function sendOtpEmail(to, code) {
 
   if (!transport) {
     console.log(`OTP for ${to}: ${code} (SMTP not configured, logged for development)`);
+    console.log('Configure SMTP to send real emails: set SMTP_SERVICE or SMTP_HOST/SMTP_PORT with SMTP_USER/SMTP_PASS');
     return { success: true, fallbackLogged: true };
   }
 

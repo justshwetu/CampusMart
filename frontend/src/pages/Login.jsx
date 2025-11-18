@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -29,15 +29,43 @@ const Login = () => {
     email: '',
     password: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
   const [otpMode, setOtpMode] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpEmail, setOtpEmail] = useState('');
+  const [otpExpiresIn, setOtpExpiresIn] = useState(10);
+  const [otpExpiresAt, setOtpExpiresAt] = useState(null);
+  const [resendAvailableAt, setResendAvailableAt] = useState(null);
+  const [nowTs, setNowTs] = useState(Date.now());
+  const [showPassword, setShowPassword] = useState(false);
   
   const { login, requestOtp, verifyOtp, loading, error, clearError } = useAuth();
   const { isDarkMode } = useTheme();
   const navigate = useNavigate();
+
+  // Tick every second to update countdowns
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const expirySecondsLeft = useMemo(() => {
+    if (!otpExpiresAt) return null;
+    const diff = new Date(otpExpiresAt).getTime() - nowTs;
+    return Math.max(0, Math.floor(diff / 1000));
+  }, [otpExpiresAt, nowTs]);
+
+  const resendSecondsLeft = useMemo(() => {
+    if (!resendAvailableAt) return 0;
+    const diff = new Date(resendAvailableAt).getTime() - nowTs;
+    return Math.max(0, Math.floor(diff / 1000));
+  }, [resendAvailableAt, nowTs]);
+
+  const formatMMSS = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -49,28 +77,25 @@ const Login = () => {
     if (localError) setLocalError('');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Basic validation
-    if (!formData.email || !formData.password) {
-      setLocalError('Please fill in all fields');
+  const handleSendCode = async () => {
+    const email = (otpEmail || formData.email).trim();
+    if (!email) {
+      setLocalError('Enter your email to get an OTP');
       return;
     }
-
-    const result = await login(formData.email, formData.password);
-    
-    if (result.success) {
-      navigate('/dashboard');
-    } else if (result.otpRequired) {
+    const res = await requestOtp(email);
+    if (res.success) {
       setOtpMode(true);
-      setOtpEmail(result.email || formData.email);
-      setLocalError('');
+      setOtpEmail(email);
+      setLocalError(res.devFallback ? 'OTP sent. SMTP not configured: check backend server logs for the code.' : '');
+      if (res.expiresInMinutes) setOtpExpiresIn(res.expiresInMinutes);
+      if (res.otpExpiresAt) setOtpExpiresAt(res.otpExpiresAt);
+      if (res.resendAvailableAt) setResendAvailableAt(res.resendAvailableAt);
     }
-  };
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
+    else if (res.error) {
+      setLocalError(res.error);
+      if (res.resendAvailableAt) setResendAvailableAt(res.resendAvailableAt);
+    }
   };
 
   if (loading) {
@@ -249,146 +274,41 @@ const Login = () => {
             </Alert>
           )}
 
-          {/* Login Form (Password) */}
+          {/* Password Form (Step 1) */}
           {!otpMode && (
-          <form onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              name="email"
-              type="email"
-              label="Email Address"
-              value={formData.email}
-              onChange={handleChange}
-              margin="normal"
-              required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Email color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&:hover fieldset': {
-                    borderColor: '#e23744',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#e23744',
-                  },
-                },
-              }}
-            />
-
-            <TextField
-              fullWidth
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              label="Password"
-              value={formData.password}
-              onChange={handleChange}
-              margin="normal"
-              required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock color="action" />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={togglePasswordVisibility}
-                      edge="end"
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&:hover fieldset': {
-                    borderColor: '#e23744',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#e23744',
-                  },
-                },
-              }}
-            />
-
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              size="large"
-              disabled={loading}
-              sx={{
-                mt: 3,
-                mb: 1,
-                py: 1.5,
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #e23744, #ff6b75)',
-                boxShadow: '0 4px 20px rgba(226, 55, 68, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #d32f2f, #e23744)',
-                  boxShadow: '0 6px 25px rgba(226, 55, 68, 0.4)',
-                },
-                '&:disabled': {
-                  background: '#ccc',
-                }
-              }}
-            >
-              {loading ? 'Signing In...' : 'Sign In'}
-            </Button>
-
-            <Button
-              fullWidth
-              variant="outlined"
-              size="large"
-              disabled={loading || !formData.email}
-              onClick={async () => {
-                if (!formData.email) {
-                  setLocalError('Enter your email to get an OTP');
-                  return;
-                }
-                const res = await requestOtp(formData.email);
-                if (res.success) {
-                  setOtpMode(true);
-                  setOtpEmail(formData.email);
-                  setLocalError('');
-                }
-              }}
-              sx={{ mt: 1, borderRadius: 2 }}
-            >
-              {loading ? 'Sending...' : 'Sign in with OTP'}
-            </Button>
-          </form>
-          )}
-
-          {/* OTP Verification Form */}
-          {otpMode && (
             <Box component="form" onSubmit={async (e) => {
               e.preventDefault();
-              if (!otpEmail || !otpCode) {
-                setLocalError('Enter the code sent to your email');
+              const email = formData.email.trim();
+              const password = formData.password;
+              if (!email || !password) {
+                setLocalError('Enter email and password');
                 return;
               }
-              const res = await verifyOtp(otpEmail, otpCode);
-              if (res.success) {
+              const res = await login(email, password);
+              if (res.otpRequired) {
+                // Navigate to dedicated OTP page with context from backend
+                navigate('/otp', {
+                  state: {
+                    email,
+                    devFallback: res.devFallback,
+                    expiresInMinutes: res.expiresInMinutes,
+                    otpExpiresAt: res.otpExpiresAt,
+                    resendAvailableAt: res.resendAvailableAt
+                  }
+                });
+              } else if (res.success) {
                 navigate('/dashboard');
+              } else if (res.error || res.message) {
+                setLocalError(res.error || res.message);
               }
             }}>
               <TextField
                 fullWidth
-                name="otpEmail"
+                name="email"
                 type="email"
                 label="Email Address"
-                value={otpEmail || formData.email}
-                onChange={(e)=> setOtpEmail(e.target.value)}
+                value={formData.email}
+                onChange={handleChange}
                 margin="normal"
                 required
                 InputProps={{
@@ -409,14 +329,27 @@ const Login = () => {
 
               <TextField
                 fullWidth
-                name="otpCode"
-                label="Verification Code"
-                value={otpCode}
-                onChange={(e)=> setOtpCode(e.target.value)}
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                label="Password"
+                value={formData.password}
+                onChange={handleChange}
                 margin="normal"
-                placeholder="Enter 6-digit code"
-                inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6 }}
                 required
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock color="action" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => setShowPassword((v)=>!v)} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
@@ -446,35 +379,113 @@ const Login = () => {
                   '&:disabled': { background: '#ccc' }
                 }}
               >
-                {loading ? 'Verifying...' : 'Verify & Sign In'}
+                {loading ? 'Checking...' : 'Sign In'}
               </Button>
+            </Box>
+          )}
 
-              <Button
+          {/* OTP Verification Form */}
+          {otpMode && (
+            <Box component="form" onSubmit={async (e) => {
+              e.preventDefault();
+              if (!otpEmail || !otpCode) {
+                setLocalError('Enter the code sent to your email');
+                return;
+              }
+              const res = await verifyOtp(otpEmail, otpCode);
+              if (res.success) {
+                navigate('/dashboard');
+              }
+            }}>
+              <TextField
                 fullWidth
-                variant="text"
-                disabled={loading}
-                onClick={async () => {
-                  if (!otpEmail) {
-                    setLocalError('Enter your email to get an OTP');
-                    return;
-                  }
-                  await requestOtp(otpEmail);
-                  // no-op on success; code resent
+                name="otpEmail"
+                type="email"
+                label="Email Address"
+                value={otpEmail || formData.email}
+                onChange={(e)=> setOtpEmail(e.target.value)}
+                margin="normal"
+                required
+                helperText={otpEmail ? (
+                  expirySecondsLeft != null
+                    ? `Code sent to ${otpEmail}. Expires in ${formatMMSS(expirySecondsLeft)}. Check spam/junk.`
+                    : `Code sent to ${otpEmail}. Expires in ${otpExpiresIn} minutes. Check spam/junk.`
+                ) : 'We’ll send a verification code to your email.'}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Email color="action" />
+                    </InputAdornment>
+                  ),
                 }}
-                sx={{ mt: 1 }}
-              >
-                Resend Code
-              </Button>
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '&:hover fieldset': { borderColor: '#e23744' },
+                    '&.Mui-focused fieldset': { borderColor: '#e23744' },
+                  },
+                }}
+              />
+
+              <TextField
+                fullWidth
+                name="otpCode"
+                label="Verification Code"
+                value={otpCode}
+                onChange={(e)=> setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                margin="normal"
+                placeholder="Enter 6-digit code"
+                inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6 }}
+                required
+                helperText={otpCode && otpCode.length !== 6 ? 'Enter exactly 6 digits.' : 'Do not share this one-time code with anyone.'}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '&:hover fieldset': { borderColor: '#e23744' },
+                    '&.Mui-focused fieldset': { borderColor: '#e23744' },
+                  },
+                }}
+              />
 
               <Button
+                type="submit"
                 fullWidth
-                variant="outlined"
-                disabled={loading}
-                onClick={() => { setOtpMode(false); setOtpCode(''); setLocalError(''); }}
-                sx={{ mt: 1, borderRadius: 2 }}
+                variant="contained"
+                size="large"
+                disabled={loading || otpCode.length !== 6 || (expirySecondsLeft !== null && expirySecondsLeft <= 0)}
+                sx={{
+                  mt: 3,
+                  mb: 1,
+                  py: 1.5,
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #e23744, #ff6b75)',
+                  boxShadow: '0 4px 20px rgba(226, 55, 68, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #d32f2f, #e23744)',
+                    boxShadow: '0 6px 25px rgba(226, 55, 68, 0.4)',
+                  },
+                  '&:disabled': { background: '#ccc' }
+                }}
               >
-                Use Password Instead
+                {loading ? 'Verifying...' : (expirySecondsLeft !== null && expirySecondsLeft <= 0 ? 'Code Expired' : 'Verify & Sign In')}
               </Button>
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {resendSecondsLeft > 0 ? `Resend available in ${formatMMSS(resendSecondsLeft)}` : 'You can resend a new code.'}
+                </Typography>
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={handleSendCode}
+                  disabled={resendSecondsLeft > 0 || loading}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Resend Code
+                </Button>
+              </Box>
+
+              
             </Box>
           )}
 
